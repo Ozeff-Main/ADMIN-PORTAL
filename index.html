@@ -217,12 +217,11 @@
         </div>
     </div>
 
-    <!-- Firebase SDKs -->
+    <!-- Firebase SDKs with direct HTTPS URL paths for pure browser execution -->
     <script type="module">
-        import { initializeApp } from "firebase/app";
-        import { getFirestore, collection, addDoc, getDocs, query, where } from "firebase/analytics";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        // REPLACE THIS WITH YOUR FIREBASE CONFIG FROM STEP 1
         const firebaseConfig = {
             apiKey: "AIzaSyDfR1qBZbTi9HnHJ97T_AM1Mc4yyuPLwUU",
             authDomain: "ozeff-c8c89.firebaseapp.com",
@@ -236,7 +235,7 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // Expose functions globally for UI buttons
+        // Expose functions globally for HTML onclick attributes
         window.registerUser = async function() {
             const name = document.getElementById('reg-name').value.trim();
             const email = document.getElementById('reg-email').value.trim();
@@ -255,131 +254,4 @@
             try {
                 // Check if user already exists
                 const q = query(collection(db, "users"), where("email", "==", email));
-                const querySnapshot = await getDocs(q);
-
-                if (!querySnapshot.empty) {
-                    msgEl.textContent = "An account with this email already exists!";
-                    msgEl.className = "msg error";
-                    return;
-                }
-
-                // Add to Cloud Database
-                await addDoc(collection(db, "users"), {
-                    name: name,
-                    email: email,
-                    password: password,
-                    joined: new Date().toLocaleDateString()
-                });
-
-                msgEl.textContent = "Registration successful! Saved to Cloud Database.";
-                msgEl.className = "msg success";
-
-                document.getElementById('reg-name').value = '';
-                document.getElementById('reg-email').value = '';
-                document.getElementById('reg-password').value = '';
-            } catch (e) {
-                msgEl.textContent = "Error saving data: " + e.message;
-                msgEl.className = "msg error";
-            }
-        };
-
-        window.loginUser = async function() {
-            const email = document.getElementById('login-email').value.trim();
-            const password = document.getElementById('login-password').value.trim();
-            const msgEl = document.getElementById('login-msg');
-
-            msgEl.textContent = "Verifying credentials...";
-            msgEl.className = "msg";
-
-            try {
-                const q = query(collection(db, "users"), where("email", "==", email), where("password", "==", password));
-                const querySnapshot = await getDocs(q);
-
-                if (querySnapshot.empty) {
-                    msgEl.textContent = "Invalid email or password.";
-                    msgEl.className = "msg error";
-                    return;
-                }
-
-                const userData = querySnapshot.docs[0].data();
-                sessionStorage.setItem('active_user', JSON.stringify(userData));
-
-                msgEl.textContent = "Login successful!";
-                msgEl.className = "msg success";
-
-                setTimeout(() => {
-                    document.getElementById('section-login').classList.add('hidden');
-                    document.getElementById('section-dashboard').classList.remove('hidden');
-                    document.getElementById('user-display-name').textContent = userData.name;
-                }, 500);
-            } catch (e) {
-                msgEl.textContent = "Login error: " + e.message;
-                msgEl.className = "msg error";
-            }
-        };
-
-        window.loadAdminTable = async function() {
-            const tbody = document.getElementById('admin-user-table');
-            tbody.innerHTML = `<tr><td colspan="3" style="text-align: center;">Loading from cloud...</td></tr>`;
-
-            try {
-                const querySnapshot = await getDocs(collection(db, "users"));
-                document.getElementById('total-users').textContent = querySnapshot.size;
-
-                tbody.innerHTML = '';
-                if (querySnapshot.empty) {
-                    tbody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: var(--text-light);">No accounts found in cloud database.</td></tr>`;
-                    return;
-                }
-
-                querySnapshot.forEach((doc) => {
-                    const u = doc.data();
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `
-                        <td>${escapeHtml(u.name)}</td>
-                        <td>${escapeHtml(u.email)}</td>
-                        <td>${u.joined}</td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-            } catch (e) {
-                tbody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: var(--error);">Error loading data: ${e.message}</td></tr>`;
-            }
-        };
-
-        window.logoutUser = function() {
-            sessionStorage.removeItem('active_user');
-            document.getElementById('section-dashboard').classList.add('hidden');
-            document.getElementById('section-login').classList.remove('hidden');
-        };
-
-        window.switchTab = function(tabName) {
-            document.querySelectorAll('.auth-section').forEach(el => el.classList.add('hidden'));
-            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-
-            if (tabName === 'register') {
-                document.getElementById('section-register').classList.remove('hidden');
-                event.target.classList.add('active');
-            } else if (tabName === 'login') {
-                const active = sessionStorage.getItem('active_user');
-                if (active) {
-                    const user = JSON.parse(active);
-                    document.getElementById('section-dashboard').classList.remove('hidden');
-                    document.getElementById('user-display-name').textContent = user.name;
-                } else {
-                    document.getElementById('section-login').classList.remove('hidden');
-                }
-                event.target.classList.add('active');
-            } else if (tabName === 'admin') {
-                document.getElementById('section-admin').classList.remove('hidden');
-                event.target.classList.add('active');
-                window.loadAdminTable();
-            }
-        };
-
-        function escapeHtml(str) {
-            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        }
-    </script>
-</body>
-</html>
+                const querySnapshot = await
