@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Secure Cloud Portal & Admin Dashboard</title>
+    <title>Secure Cloud Portal & TMS Record Checker</title>
+    <!-- SheetJS CDN for parsing Excel files directly in the browser -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         :root {
             --primary: #2563eb;
@@ -16,64 +18,85 @@
             --error: #ef4444;
             --success: #22c55e;
             --admin-bg: #7c3aed;
+            --sidebar-width: 260px;
         }
+
+        * { box-sizing: border-box; }
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: var(--bg);
             color: var(--text);
             margin: 0;
-            padding: 20px;
+            padding: 0;
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Side Navigation Panel */
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: #0f172a;
+            color: #f8fafc;
+            padding: 20px 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+        }
+
+        .sidebar h3 {
+            color: #38bdf8;
+            font-size: 18px;
+            margin-top: 0;
+            margin-bottom: 15px;
+            text-align: center;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 10px;
+        }
+
+        .side-btn {
+            background: none;
+            border: none;
+            color: #94a3b8;
+            padding: 12px 15px;
+            text-align: left;
+            font-size: 15px;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .side-btn:hover, .side-btn.active {
+            background-color: #1e293b;
+            color: #38bdf8;
+        }
+
+        /* Main Content Layout */
+        .main-content {
+            flex: 1;
+            padding: 30px;
             display: flex;
             justify-content: center;
-            align-items: center;
-            min-height: 100vh;
+            align-items: flex-start;
         }
 
         .container {
             width: 100%;
-            max-width: 600px;
+            max-width: 700px;
             background: var(--card-bg);
             padding: 30px;
             border-radius: 12px;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
         }
 
-        h2 {
-            margin-top: 0;
-            color: var(--primary);
-            text-align: center;
-        }
+        h2 { margin-top: 0; color: var(--primary); text-align: center; }
 
-        .nav-tabs {
-            display: flex;
-            justify-content: center;
-            gap: 10px;
-            margin-bottom: 25px;
-            border-bottom: 2px solid var(--border);
-            padding-bottom: 10px;
-        }
-
-        .tab-btn {
-            background: none;
-            border: none;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            color: var(--text-light);
-            padding: 8px 16px;
-            border-radius: 6px;
-            transition: all 0.2s;
-        }
-
-        .tab-btn.active {
-            background-color: var(--primary);
-            color: white;
-        }
-
-        .form-group {
-            margin-bottom: 15px;
-        }
+        .form-group { margin-bottom: 15px; }
 
         label {
             display: block;
@@ -82,13 +105,12 @@
             font-size: 14px;
         }
 
-        input {
+        input, select {
             width: 100%;
             padding: 10px 12px;
             border: 1px solid var(--border);
             border-radius: 6px;
             font-size: 14px;
-            box-sizing: border-box;
         }
 
         .btn {
@@ -107,127 +129,140 @@
         .btn:hover { background-color: var(--primary-hover); }
         .btn-danger { background-color: var(--error); }
         .btn-admin { background-color: var(--admin-bg); }
-        .btn-admin:hover { background-color: #6d28d9; }
+        .btn-copy { background-color: #10b981; margin-top: 10px; width: auto; padding: 8px 16px; font-size: 14px; }
+        .btn-copy:hover { background-color: #059669; }
 
-        .msg {
-            margin-top: 15px;
-            text-align: center;
-            font-size: 14px;
-            font-weight: 500;
-        }
+        .msg { margin-top: 15px; text-align: center; font-size: 14px; font-weight: 500; }
         .msg.success { color: var(--success); }
         .msg.error { color: var(--error); }
 
         .hidden { display: none !important; }
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
+        /* Record Cards Formatting */
+        .record-card {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-left: 4px solid var(--primary);
+            padding: 15px;
+            border-radius: 8px;
             margin-top: 15px;
-        }
-
-        th, td {
-            border: 1px solid var(--border);
-            padding: 10px;
-            text-align: left;
+            font-family: monospace;
+            white-space: pre-wrap;
             font-size: 14px;
+            position: relative;
         }
 
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .badge-underage { color: #dc2626; font-weight: bold; }
+        .badge-legal { color: #16a34a; font-weight: bold; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid var(--border); padding: 10px; text-align: left; font-size: 14px; }
         th { background-color: #f1f5f9; font-weight: 600; }
-
-        .stats {
-            background: #f1f5f9;
-            padding: 10px 15px;
-            border-radius: 6px;
-            margin-bottom: 15px;
-            font-weight: 500;
-        }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <h2>🌐 Secure Cloud Portal</h2>
-
-        <!-- Public Navigation Tabs (Admin Tab Hidden) -->
-        <div class="nav-tabs" id="public-nav">
-            <button class="tab-btn active" onclick="switchTab('register')">Register</button>
-            <button class="tab-btn" onclick="switchTab('login')">Login</button>
-        </div>
-
-        <!-- 1. REGISTER SECTION -->
-        <div id="section-register" class="auth-section">
-            <h3>Create an Account</h3>
-            <div class="form-group">
-                <label>Full Name</label>
-                <input type="text" id="reg-name" placeholder="Enter your full name">
-            </div>
-            <div class="form-group">
-                <label>Email Address</label>
-                <input type="email" id="reg-email" placeholder="name@example.com">
-            </div>
-            <div class="form-group">
-                <label>Password</label>
-                <input type="password" id="reg-password" placeholder="Create a secure password">
-            </div>
-            <button class="btn" onclick="registerUser()">Register Account</button>
-            <div id="reg-msg" class="msg"></div>
-        </div>
-
-        <!-- 2. LOGIN SECTION -->
-        <div id="section-login" class="auth-section hidden">
-            <h3>Welcome Back</h3>
-            <div class="form-group">
-                <label>Email Address</label>
-                <input type="email" id="login-email" placeholder="name@example.com">
-            </div>
-            <div class="form-group">
-                <label>Password</label>
-                <input type="password" id="login-password" placeholder="Enter your password">
-            </div>
-            <button class="btn" onclick="loginUser()">Log In</button>
-            <div id="login-msg" class="msg"></div>
-        </div>
-
-        <!-- 3. USER DASHBOARD SECTION -->
-        <div id="section-dashboard" class="auth-section hidden">
-            <h3>User Dashboard</h3>
-            <p>Hello, <span id="user-display-name" style="font-weight: bold; color: var(--primary);"></span>!</p>
-            <p>You are successfully logged in.</p>
-            
-            <!-- Hidden Admin Button (Only appears if logged in as admin) -->
-            <div id="admin-button-container" class="hidden" style="margin-top: 20px;">
-                <button class="btn btn-admin" onclick="openAdminPanel()">🔒 Open Admin Database Panel</button>
-            </div>
-
-            <button class="btn btn-danger" onclick="logoutUser()" style="margin-top: 10px;">Log Out</button>
-        </div>
-
-        <!-- 4. ADMIN PANEL SECTION (Hidden by default) -->
-        <div id="section-admin" class="auth-section hidden">
-            <h3>🔒 Admin Database Accounts</h3>
-            <div class="stats">
-                <span>Total Live Accounts: <span id="total-users">0</span></span>
-            </div>
-            <div style="overflow-x: auto;">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Email</th>
-                            <th>Joined Date</th>
-                        </tr>
-                    </thead>
-                    <tbody id="admin-user-table">
-                        <!-- Loaded live from Firebase -->
-                    </tbody>
-                </table>
-            </div>
-            <button class="btn" onclick="backToDashboard()" style="margin-top: 15px; background-color: var(--text-light);">Back to Dashboard</button>
-        </div>
+    <!-- SIDE NAVIGATION PANEL -->
+    <div class="sidebar">
+        <h3>Portal Menu</h3>
+        <button class="side-btn active" onclick="switchMainView('portal')">🔑 Account Portal</button>
+        <button class="side-btn" onclick="switchMainView('tms')">📋 TMS Record Checker</button>
     </div>
 
-    <!-- Firebase SDKs -->
+    <!-- MAIN CONTENT AREA -->
+    <div class="main-content">
+        
+        <!-- VIEW 1: AUTHENTICATION & ADMIN PORTAL -->
+        <div id="view-portal" class="container">
+            <h2>🌐 Cloud Connected Portal</h2>
+
+            <div class="nav-tabs" id="public-nav" style="display: flex; gap: 10px; margin-bottom: 20px;">
+                <button class="btn" style="flex:1" onclick="switchAuthTab('register')">Register</button>
+                <button class="btn" style="flex:1; background-color: var(--text-light)" onclick="switchAuthTab('login')">Login</button>
+            </div>
+
+            <!-- REGISTER -->
+            <div id="section-register" class="auth-section">
+                <h3>Create an Account</h3>
+                <div class="form-group"><label>Full Name</label><input type="text" id="reg-name"></div>
+                <div class="form-group"><label>Email Address</label><input type="email" id="reg-email"></div>
+                <div class="form-group"><label>Password</label><input type="password" id="reg-password"></div>
+                <button class="btn" onclick="registerUser()">Register Account</button>
+                <div id="reg-msg" class="msg"></div>
+            </div>
+
+            <!-- LOGIN -->
+            <div id="section-login" class="auth-section hidden">
+                <h3>Welcome Back</h3>
+                <div class="form-group"><label>Email Address</label><input type="email" id="login-email"></div>
+                <div class="form-group"><label>Password</label><input type="password" id="login-password"></div>
+                <button class="btn" onclick="loginUser()">Log In</button>
+                <div id="login-msg" class="msg"></div>
+            </div>
+
+            <!-- DASHBOARD -->
+            <div id="section-dashboard" class="auth-section hidden">
+                <h3>User Dashboard</h3>
+                <p>Hello, <span id="user-display-name" style="font-weight: bold; color: var(--primary);"></span>!</p>
+                <div id="admin-button-container" class="hidden" style="margin-top: 15px;">
+                    <button class="btn btn-admin" onclick="openAdminPanel()">🔒 Open Admin Database Panel</button>
+                </div>
+                <button class="btn btn-danger" onclick="logoutUser()" style="margin-top: 10px;">Log Out</button>
+            </div>
+
+            <!-- ADMIN PANEL -->
+            <div id="section-admin" class="auth-section hidden">
+                <h3>🔒 Admin Database Accounts</h3>
+                <p>Total Live Accounts: <span id="total-users">0</span></p>
+                <table>
+                    <thead><tr><th>Name</th><th>Email</th><th>Joined</th></tr></thead>
+                    <tbody id="admin-user-table"></tbody>
+                </table>
+                <button class="btn" onclick="backToDashboard()" style="margin-top: 15px; background-color: var(--text-light);">Back</button>
+            </div>
+        </div>
+
+        <!-- VIEW 2: PASSPORT & TMS RECORD CHECKER -->
+        <div id="view-tms" class="container hidden">
+            <h2>📋 Passport & TMS Record Checking</h2>
+            
+            <!-- Step 1: Excel Upload -->
+            <div style="background-color: #f1f5f9; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <label style="font-weight: bold; margin-bottom: 8px;">Step 1: Upload Employee Excel File (.xlsx / .xls)</label>
+                <input type="file" id="excel-file-input" accept=".xlsx, .xls" onchange="handleFileUpload(event)">
+                <div id="file-status-msg" class="msg" style="text-align: left;"></div>
+            </div>
+
+            <!-- Step 2: Search Controls -->
+            <div id="search-controls" class="hidden">
+                <div class="form-group">
+                    <label>Search By Criteria:</label>
+                    <select id="search-type">
+                        <option value="name">English Name (Shows all matches)</option>
+                        <option value="passport">Passport Number (Shows all matches)</option>
+                        <option value="birthday">Birthday (Exact Match - e.g. YYYY-MM-DD or MM/DD/YYYY)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <input type="text" id="search-query" placeholder="Enter name, passport number, or birthday...">
+                </div>
+                <button class="btn" onclick="searchTMSData()">Search Record</button>
+            </div>
+
+            <!-- Step 3: Search Results Container -->
+            <div id="tms-results-container" style="margin-top: 20px;"></div>
+        </div>
+
+    </div>
+
+    <!-- Firebase & Application Scripts -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getFirestore, collection, addDoc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
@@ -243,10 +278,175 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-
-        // 👉 CHANGE THIS TO YOUR ADMIN EMAIL
         const ADMIN_EMAIL = "anthonyjosephramos30@gmail.com";
 
+        // Local storage variable for Excel data
+        let excelParsedData = [];
+
+        // View Switcher (Sidebar)
+        window.switchMainView = function(viewName) {
+            document.querySelectorAll('.side-btn').forEach(btn => btn.classList.remove('active'));
+            if (viewName === 'portal') {
+                document.getElementById('view-portal').classList.remove('hidden');
+                document.getElementById('view-tms').classList.add('hidden');
+                event.target.classList.add('active');
+            } else if (viewName === 'tms') {
+                document.getElementById('view-portal').classList.add('hidden');
+                document.getElementById('view-tms').classList.remove('hidden');
+                event.target.classList.add('active');
+            }
+        };
+
+        window.switchAuthTab = function(tab) {
+            document.getElementById('section-register').classList.toggle('hidden', tab !== 'register');
+            document.getElementById('section-login').classList.toggle('hidden', tab !== 'login');
+        };
+
+        // Parse Excel File
+        window.handleFileUpload = function(e) {
+            const file = e.target.files[0];
+            const statusEl = document.getElementById('file-status-msg');
+
+            if (!file) return;
+
+            statusEl.textContent = "Processing Excel file...";
+            statusEl.className = "msg";
+
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    const data = new Uint8Array(evt.target.result);
+                    const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+                    const firstSheet = workbook.SheetNames[0];
+                    excelParsedData = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet], { defval: "" });
+
+                    statusEl.textContent = `Successfully loaded ${excelParsedData.length} records!`;
+                    statusEl.className = "msg success";
+                    document.getElementById('search-controls').classList.remove('hidden');
+                } catch (err) {
+                    statusEl.textContent = "Error reading file: " + err.message;
+                    statusEl.className = "msg error";
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        };
+
+        // Search TMS Data
+        window.searchTMSData = function() {
+            const queryVal = document.getElementById('search-query').value.trim().toLowerCase();
+            const type = document.getElementById('search-type').value;
+            const container = document.getElementById('tms-results-container');
+            container.innerHTML = '';
+
+            if (!queryVal) {
+                container.innerHTML = `<div class="msg error">Please enter a search value.</div>`;
+                return;
+            }
+
+            if (excelParsedData.length === 0) {
+                container.innerHTML = `<div class="msg error">Please upload an Excel file first.</div>`;
+                return;
+            }
+
+            // Helper to get matching key regardless of exact column capitalization
+            const getValue = (row, possibleKeys) => {
+                for (let k of Object.keys(row)) {
+                    for (let p of possibleKeys) {
+                        if (k.trim().toLowerCase() === p.toLowerCase()) return row[k];
+                    }
+                }
+                return "";
+            };
+
+            const results = excelParsedData.filter(row => {
+                const name = String(getValue(row, ["English Name", "PPT NAME", "Name", "Full Name"])).toLowerCase();
+                const ppt = String(getValue(row, ["Passport", "Passport No", "PPT NO", "PPT NO."])).toLowerCase();
+                const bday = String(getValue(row, ["Birthday", "Birthdate", "Birth Date"])).toLowerCase();
+
+                if (type === 'name') return name.includes(queryVal);
+                if (type === 'passport') return ppt.includes(queryVal);
+                if (type === 'birthday') return bday === queryVal || bday.includes(queryVal);
+                return false;
+            });
+
+            if (results.length === 0) {
+                // If not found in file
+                container.innerHTML = `
+                    <div class="record-card" style="border-left-color: var(--error);">
+                        <div>PPT NAME: N/A</div>
+                        <div>PPT NO.: N/A</div>
+                        <div>W/ RECORD ON TMS: NO</div>
+                        <div>PREV. OFFICE: N/A</div>
+                        <div>PREV. SITE: N/A</div>
+                        <div>LAST STATUS: N/A</div>
+                        <div>LAST STATUS DATE: N/A</div>
+                        <div>TMS ID NUMBER: N/A</div>
+                        <div>AGE STATUS: N/A</div>
+                    </div>`;
+                return;
+            }
+
+            // Render output cards
+            results.forEach((row, index) => {
+                const pptName = getValue(row, ["English Name", "PPT NAME", "Name", "Full Name"]) || "N/A";
+                const pptNo = getValue(row, ["Passport", "Passport No", "PPT NO", "PPT NO."]) || "N/A";
+                const office = getValue(row, ["Office", "PREV. OFFICE", "Previous Office"]) || "N/A";
+                const site = getValue(row, ["Site", "PREV. SITE", "Company", "Previous Site"]) || "N/A";
+                const status = getValue(row, ["Status", "LAST STATUS", "Last Status"]) || "N/A";
+                const statusDate = getValue(row, ["Status Date", "LAST STATUS DATE"]) || "N/A";
+                const tmsId = getValue(row, ["TMS ID", "TMS ID NUMBER", "ID Number", "ID"]) || "N/A";
+                const bdayRaw = getValue(row, ["Birthday", "Birthdate", "Birth Date"]);
+
+                // Calculate Age Status
+                let ageStatus = "N/A";
+                if (bdayRaw) {
+                    const birthDate = new Date(bdayRaw);
+                    if (!isNaN(birthDate)) {
+                        const today = new Date();
+                        let age = today.getFullYear() - birthDate.getFullYear();
+                        const m = today.getMonth() - birthDate.getMonth();
+                        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
+                        ageStatus = age < 21 ? "Underage" : "Legal Age";
+                    }
+                }
+
+                const outputText = 
+`PPT NAME: ${pptName}
+PPT NO.: ${pptNo}
+W/ RECORD ON TMS: YES
+PREV. OFFICE: ${office}
+PREV. SITE: ${site}
+LAST STATUS: ${status}
+LAST STATUS DATE: ${statusDate}
+TMS ID NUMBER: ${tmsId}
+AGE STATUS: ${ageStatus}`;
+
+                const card = document.createElement('div');
+                card.className = 'record-card';
+                card.innerHTML = `
+                    <div class="card-header">
+                        <strong>Record #${index + 1}</strong>
+                        <button class="btn btn-copy" onclick="copyToClipboard(\`${escapeQuote(outputText)}\`)">📋 Copy Record</button>
+                    </div>
+                    <div>${outputText}</div>
+                `;
+                container.appendChild(card);
+            });
+        };
+
+        window.copyToClipboard = function(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert("Record copied to clipboard!");
+            }).catch(err => {
+                alert("Failed to copy text: " + err);
+            });
+        };
+
+        function escapeQuote(str) {
+            return str.replace(/`/g, "\\`").replace(/\$/g, "\\$");
+        }
+
+        // Auth implementations
         window.registerUser = async function() {
             const name = document.getElementById('reg-name').value.trim();
             const email = document.getElementById('reg-email').value.trim();
@@ -259,34 +459,20 @@
                 return;
             }
 
-            msgEl.textContent = "Saving to Cloud Database...";
-            msgEl.className = "msg";
-
             try {
                 const q = query(collection(db, "users"), where("email", "==", email));
                 const querySnapshot = await getDocs(q);
-
                 if (!querySnapshot.empty) {
-                    msgEl.textContent = "An account with this email already exists!";
+                    msgEl.textContent = "Account already exists!";
                     msgEl.className = "msg error";
                     return;
                 }
 
-                await addDoc(collection(db, "users"), {
-                    name: name,
-                    email: email,
-                    password: password,
-                    joined: new Date().toLocaleDateString()
-                });
-
-                msgEl.textContent = "Registration successful! You can now log in.";
+                await addDoc(collection(db, "users"), { name, email, password, joined: new Date().toLocaleDateString() });
+                msgEl.textContent = "Registration successful!";
                 msgEl.className = "msg success";
-
-                document.getElementById('reg-name').value = '';
-                document.getElementById('reg-email').value = '';
-                document.getElementById('reg-password').value = '';
             } catch (e) {
-                msgEl.textContent = "Error saving data: " + e.message;
+                msgEl.textContent = e.message;
                 msgEl.className = "msg error";
             }
         };
@@ -296,129 +482,56 @@
             const password = document.getElementById('login-password').value.trim();
             const msgEl = document.getElementById('login-msg');
 
-            msgEl.textContent = "Verifying credentials...";
-            msgEl.className = "msg";
-
             try {
                 const q = query(collection(db, "users"), where("email", "==", email), where("password", "==", password));
                 const querySnapshot = await getDocs(q);
-
                 if (querySnapshot.empty) {
-                    msgEl.textContent = "Invalid email or password.";
+                    msgEl.textContent = "Invalid credentials.";
                     msgEl.className = "msg error";
                     return;
                 }
 
                 const userData = querySnapshot.docs[0].data();
                 sessionStorage.setItem('active_user', JSON.stringify(userData));
-
-                msgEl.textContent = "Login successful!";
-                msgEl.className = "msg success";
-
-                setTimeout(() => {
-                    showDashboard(userData);
-                }, 500);
+                showDashboard(userData);
             } catch (e) {
-                msgEl.textContent = "Login error: " + e.message;
+                msgEl.textContent = e.message;
                 msgEl.className = "msg error";
             }
         };
 
         function showDashboard(user) {
             document.querySelectorAll('.auth-section').forEach(el => el.classList.add('hidden'));
-            document.getElementById('public-nav').classList.add('hidden');
             document.getElementById('section-dashboard').classList.remove('hidden');
             document.getElementById('user-display-name').textContent = user.name;
-
-            // Check if logged-in user is the admin
             if (user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
                 document.getElementById('admin-button-container').classList.remove('hidden');
-            } else {
-                document.getElementById('admin-button-container').classList.add('hidden');
             }
         }
 
         window.openAdminPanel = async function() {
             document.querySelectorAll('.auth-section').forEach(el => el.classList.add('hidden'));
             document.getElementById('section-admin').classList.remove('hidden');
-            window.loadAdminTable();
+            const tbody = document.getElementById('admin-user-table');
+            const querySnapshot = await getDocs(collection(db, "users"));
+            document.getElementById('total-users').textContent = querySnapshot.size;
+            tbody.innerHTML = '';
+            querySnapshot.forEach(doc => {
+                const u = doc.data();
+                tbody.innerHTML += `<tr><td>${u.name}</td><td>${u.email}</td><td>${u.joined}</td></tr>`;
+            });
         };
 
         window.backToDashboard = function() {
             const active = sessionStorage.getItem('active_user');
-            if (active) {
-                showDashboard(JSON.parse(active));
-            }
-        };
-
-        window.loadAdminTable = async function() {
-            const tbody = document.getElementById('admin-user-table');
-            tbody.innerHTML = `<tr><td colspan="3" style="text-align: center;">Loading from cloud...</td></tr>`;
-
-            try {
-                const querySnapshot = await getDocs(collection(db, "users"));
-                document.getElementById('total-users').textContent = querySnapshot.size;
-
-                tbody.innerHTML = '';
-                if (querySnapshot.empty) {
-                    tbody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: var(--text-light);">No accounts found in cloud database.</td></tr>`;
-                    return;
-                }
-
-                querySnapshot.forEach((doc) => {
-                    const u = doc.data();
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `
-                        <td>${escapeHtml(u.name)}</td>
-                        <td>${escapeHtml(u.email)}</td>
-                        <td>${u.joined}</td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-            } catch (e) {
-                tbody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: var(--error);">Error loading data: ${e.message}</td></tr>`;
-            }
+            if (active) showDashboard(JSON.parse(active));
         };
 
         window.logoutUser = function() {
             sessionStorage.removeItem('active_user');
             document.querySelectorAll('.auth-section').forEach(el => el.classList.add('hidden'));
-            document.getElementById('public-nav').classList.remove('hidden');
-            document.getElementById('section-login').classList.remove('hidden');
-            document.getElementById('login-email').value = '';
-            document.getElementById('login-password').value = '';
-            document.getElementById('login-msg').textContent = '';
+            document.getElementById('section-register').classList.remove('hidden');
         };
-
-        window.switchTab = function(tabName) {
-            document.querySelectorAll('.auth-section').forEach(el => el.classList.add('hidden'));
-            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-
-            if (tabName === 'register') {
-                document.getElementById('section-register').classList.remove('hidden');
-                event.target.classList.add('active');
-            } else if (tabName === 'login') {
-                const active = sessionStorage.getItem('active_user');
-                if (active) {
-                    showDashboard(JSON.parse(active));
-                } else {
-                    document.getElementById('section-login').classList.remove('hidden');
-                }
-                event.target.classList.add('active');
-            }
-        };
-
-        // Check active session on load
-        window.addEventListener('DOMContentLoaded', () => {
-            const active = sessionStorage.getItem('active_user');
-            if (active) {
-                showDashboard(JSON.parse(active));
-            }
-        });
-
-        function escapeHtml(str) {
-            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        }
     </script>
 </body>
 </html>
