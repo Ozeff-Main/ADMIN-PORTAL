@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Secure Cloud Portal & TMS Record Checker</title>
-    <!-- SheetJS CDN for parsing Excel files -->
+    <title>Secure Cloud Portal & TMS Record Search</title>
+    <!-- SheetJS CDN for parsing multiple Excel files -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         :root {
@@ -14,9 +14,9 @@
             --card-bg: #ffffff;
             --text: #1e293b;
             --text-light: #64748b;
-            --border: #e2e8f0;
+            --border: #cbd5e1;
             --error: #ef4444;
-            --success: #22c55e;
+            --success: #10b981;
             --admin-bg: #7c3aed;
             --sidebar-width: 260px;
         }
@@ -33,7 +33,7 @@
             min-height: 100vh;
         }
 
-        /* Side Navigation Panel (Hidden by default until login) */
+        /* Side Navigation Panel (Hidden until login) */
         .sidebar {
             width: var(--sidebar-width);
             background-color: #0f172a;
@@ -88,81 +88,112 @@
 
         .container {
             width: 100%;
-            max-width: 700px;
+            max-width: 950px;
             background: var(--card-bg);
-            padding: 30px;
+            padding: 40px;
             border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
         }
 
         h2 { margin-top: 0; color: var(--primary); text-align: center; }
 
-        .form-group { margin-bottom: 15px; }
+        .form-group { margin-bottom: 15px; position: relative; }
 
         label {
             display: block;
-            margin-bottom: 5px;
-            font-weight: 500;
+            margin-bottom: 6px;
+            font-weight: 600;
             font-size: 14px;
+            color: #334155;
         }
 
         input, select {
             width: 100%;
-            padding: 10px 12px;
+            padding: 10px 14px;
             border: 1px solid var(--border);
             border-radius: 6px;
             font-size: 14px;
         }
 
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .btn-action-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 8px;
+        }
+
         .btn {
-            width: 100%;
             background-color: var(--primary);
             color: white;
             border: none;
-            padding: 12px;
-            font-size: 16px;
+            padding: 10px 20px;
+            font-size: 14px;
             font-weight: 600;
             border-radius: 6px;
             cursor: pointer;
-            margin-top: 10px;
         }
 
         .btn:hover { background-color: var(--primary-hover); }
+        .btn-clear { background-color: #10b981; }
+        .btn-clear:hover { background-color: #059669; }
         .btn-danger { background-color: var(--error); }
         .btn-admin { background-color: var(--admin-bg); }
-        .btn-copy { background-color: #10b981; margin-top: 10px; width: auto; padding: 8px 16px; font-size: 14px; }
-        .btn-copy:hover { background-color: #059669; }
 
-        .msg { margin-top: 15px; text-align: center; font-size: 14px; font-weight: 500; }
+        .msg { margin-top: 10px; font-size: 14px; font-weight: 500; }
         .msg.success { color: var(--success); }
         .msg.error { color: var(--error); }
 
         .hidden { display: none !important; }
 
-        /* Record Cards Formatting */
-        .record-card {
+        /* Data Table Styling matching screenshot */
+        .table-responsive {
+            overflow-x: auto;
+            margin-top: 25px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: center;
+        }
+
+        th, td {
+            border: 1px solid var(--border);
+            padding: 12px 8px;
+            font-size: 13px;
+        }
+
+        th {
+            background-color: var(--primary);
+            color: white;
+            font-weight: 600;
+        }
+
+        td {
+            background-color: #ffffff;
+            color: #1e293b;
+        }
+
+        tr:nth-child(even) td {
             background-color: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-left: 4px solid var(--primary);
-            padding: 15px;
-            border-radius: 8px;
-            margin-top: 15px;
-            font-family: monospace;
-            white-space: pre-wrap;
-            font-size: 14px;
-            position: relative;
         }
 
-        .card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
+        .badge-copy {
+            background-color: #6366f1;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
         }
-
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        th, td { border: 1px solid var(--border); padding: 10px; text-align: left; font-size: 14px; }
-        th { background-color: #f1f5f9; font-weight: 600; }
+        .badge-copy:hover { background-color: #4f46e5; }
     </style>
 </head>
 <body>
@@ -171,7 +202,7 @@
     <div id="sidebar-panel" class="sidebar hidden">
         <h3>Portal Menu</h3>
         <button class="side-btn active" onclick="switchMainView('portal')">🔑 Account Portal</button>
-        <button class="side-btn" onclick="switchMainView('tms')">📋 TMS Record Checker</button>
+        <button class="side-btn" onclick="switchMainView('tms')">📋 TMS Record Search</button>
     </div>
 
     <!-- MAIN CONTENT AREA -->
@@ -192,8 +223,8 @@
                 <div class="form-group"><label>Full Name</label><input type="text" id="reg-name"></div>
                 <div class="form-group"><label>Email Address</label><input type="email" id="reg-email"></div>
                 <div class="form-group"><label>Password</label><input type="password" id="reg-password"></div>
-                <button class="btn" onclick="registerUser()">Register Account</button>
-                <div id="reg-msg" class="msg"></div>
+                <button class="btn" style="width:100%; padding:12px;" onclick="registerUser()">Register Account</button>
+                <div id="reg-msg" class="msg" style="text-align:center;"></div>
             </div>
 
             <!-- LOGIN -->
@@ -201,19 +232,19 @@
                 <h3>Welcome Back</h3>
                 <div class="form-group"><label>Email Address</label><input type="email" id="login-email"></div>
                 <div class="form-group"><label>Password</label><input type="password" id="login-password"></div>
-                <button class="btn" onclick="loginUser()">Log In</button>
-                <div id="login-msg" class="msg"></div>
+                <button class="btn" style="width:100%; padding:12px;" onclick="loginUser()">Log In</button>
+                <div id="login-msg" class="msg" style="text-align:center;"></div>
             </div>
 
             <!-- DASHBOARD -->
             <div id="section-dashboard" class="auth-section hidden">
                 <h3>User Dashboard</h3>
                 <p>Hello, <span id="user-display-name" style="font-weight: bold; color: var(--primary);"></span>!</p>
-                <p>You are successfully logged in. You can now use the side menu to access the TMS Record Checker.</p>
+                <p>You are successfully logged in. Use the side menu to access the Passport & TMS Record Search.</p>
                 <div id="admin-button-container" class="hidden" style="margin-top: 15px;">
-                    <button class="btn btn-admin" onclick="openAdminPanel()">🔒 Open Admin Database Panel</button>
+                    <button class="btn btn-admin" style="width:100%; padding:12px;" onclick="openAdminPanel()">🔒 Open Admin Database Panel</button>
                 </div>
-                <button class="btn btn-danger" onclick="logoutUser()" style="margin-top: 15px;">Log Out</button>
+                <button class="btn btn-danger" style="width:100%; padding:12px; margin-top: 15px;" onclick="logoutUser()">Log Out</button>
             </div>
 
             <!-- ADMIN PANEL -->
@@ -224,36 +255,60 @@
                     <thead><tr><th>Name</th><th>Email</th><th>Joined</th></tr></thead>
                     <tbody id="admin-user-table"></tbody>
                 </table>
-                <button class="btn" onclick="backToDashboard()" style="margin-top: 15px; background-color: var(--text-light);">Back to Dashboard</button>
+                <button class="btn" style="margin-top: 15px; background-color: var(--text-light);" onclick="backToDashboard()">Back to Dashboard</button>
             </div>
         </div>
 
-        <!-- VIEW 2: PASSPORT & TMS RECORD CHECKER (Protected) -->
-        <div id="view-tms" class="container hidden">
-            <h2>📋 Passport & TMS Record Checking</h2>
+        <!-- VIEW 2: PASSPORT & TMS RECORD SEARCH (Protected) -->
+        <div id="view-tms" class="container hidden" style="max-width: 1050px;">
+            <div style="text-align: center; margin-bottom: 25px;">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <h2 style="margin-top: 10px;">Passport & TMS Record Search</h2>
+            </div>
             
-            <div style="background-color: #f1f5f9; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-                <label style="font-weight: bold; margin-bottom: 8px;">Step 1: Upload Employee Excel File (.xlsx / .xls)</label>
-                <input type="file" id="excel-file-input" accept=".xlsx, .xls" onchange="handleFileUpload(event)">
-                <div id="file-status-msg" class="msg" style="text-align: left;"></div>
+            <!-- Multi-file Upload Box -->
+            <div style="background-color: #f1f5f9; padding: 20px; border-radius: 8px; margin-bottom: 25px; border: 2px dashed var(--border);">
+                <label style="font-weight: bold; margin-bottom: 8px; font-size: 15px;">Upload Employee Excel Files (Select or drag multiple files, up to 10):</label>
+                <input type="file" id="excel-file-input" accept=".xlsx, .xls" multiple onchange="handleFilesUpload(event)">
+                <div id="file-status-msg" class="msg" style="margin-top: 8px;"></div>
             </div>
 
+            <!-- Search Inputs Section -->
             <div id="search-controls" class="hidden">
                 <div class="form-group">
-                    <label>Search By Criteria:</label>
-                    <select id="search-type">
-                        <option value="name">English Name (Shows all possible matches)</option>
-                        <option value="passport">Passport Number (Shows all possible matches)</option>
-                        <option value="birthday">Birthday (Exact match required)</option>
-                    </select>
+                    <label>Search by English Name</label>
+                    <div class="btn-action-group">
+                        <input type="text" id="search-name" placeholder="e.g. HUANG, MINGSHAN">
+                        <button class="btn" onclick="executeSearch()">Search Name</button>
+                        <button class="btn btn-clear" onclick="clearField('search-name')">Clear</button>
+                    </div>
                 </div>
+
                 <div class="form-group">
-                    <input type="text" id="search-query" placeholder="Enter name, passport number, or birthday...">
+                    <label>Search by Passport Number</label>
+                    <div class="btn-action-group">
+                        <input type="text" id="search-passport" placeholder="e.g. ER8183442">
+                        <button class="btn" onclick="executeSearch()">Search Passport</button>
+                        <button class="btn btn-clear" onclick="clearField('search-passport')">Clear</button>
+                    </div>
                 </div>
-                <button class="btn" onclick="searchTMSData()">Search Record</button>
+
+                <div class="form-group">
+                    <label>BOD Filter (Birthday Precision Match - e.g. YYYY-MM-DD, MM/DD/YYYY, or Apr-17-1991)</label>
+                    <div class="btn-action-group">
+                        <input type="text" id="search-bday" placeholder="Enter exact birthday to narrow down results...">
+                        <button class="btn btn-clear" onclick="clearField('search-bday')">Clear</button>
+                    </div>
+                </div>
+
+                <div style="margin-top: 20px; display: flex; gap: 10px;">
+                    <button class="btn" style="flex: 2; padding: 12px; font-size: 16px;" onclick="executeSearch()">🔍 Run Combined Search</button>
+                    <button class="btn btn-clear" style="flex: 1; padding: 12px; font-size: 16px;" onclick="clearAllSearchFields()">Reset All</button>
+                </div>
             </div>
 
-            <div id="tms-results-container" style="margin-top: 20px;"></div>
+            <!-- Results Table Container -->
+            <div id="tms-results-container"></div>
         </div>
 
     </div>
@@ -276,9 +331,8 @@
         const db = getFirestore(app);
         const ADMIN_EMAIL = "anthonyjosephramos30@gmail.com";
 
-        let excelParsedData = [];
+        let combinedExcelData = [];
 
-        // Sidebar Navigation Switcher
         window.switchMainView = function(viewName) {
             document.querySelectorAll('.side-btn').forEach(btn => btn.classList.remove('active'));
             if (viewName === 'portal') {
@@ -297,49 +351,61 @@
             document.getElementById('section-login').classList.toggle('hidden', tab !== 'login');
         };
 
-        // Excel Handling
-        window.handleFileUpload = function(e) {
-            const file = e.target.files[0];
+        // Multi-file Excel Processing (Up to 10 files)
+        window.handleFilesUpload = async function(e) {
+            const files = Array.from(e.target.files);
             const statusEl = document.getElementById('file-status-msg');
-            if (!file) return;
+            if (files.length === 0) return;
 
-            statusEl.textContent = "Processing Excel file...";
+            statusEl.textContent = `Processing ${files.length} file(s)...`;
             statusEl.className = "msg";
+            combinedExcelData = [];
 
-            const reader = new FileReader();
-            reader.onload = function(evt) {
-                try {
-                    const data = new Uint8Array(evt.target.result);
+            try {
+                for (let file of files) {
+                    const data = await file.arrayBuffer();
                     const workbook = XLSX.read(data, { type: 'array', cellDates: true });
-                    const firstSheet = workbook.SheetNames[0];
-                    excelParsedData = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet], { defval: "" });
-
-                    statusEl.textContent = `Successfully loaded ${excelParsedData.length} records!`;
-                    statusEl.className = "msg success";
-                    document.getElementById('search-controls').classList.remove('hidden');
-                } catch (err) {
-                    statusEl.textContent = "Error reading file: " + err.message;
-                    statusEl.className = "msg error";
+                    workbook.SheetNames.forEach(sheetName => {
+                        const sheetJson = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: "" });
+                        combinedExcelData = combinedExcelData.concat(sheetJson);
+                    });
                 }
-            };
-            reader.readAsArrayBuffer(file);
+
+                statusEl.textContent = `Successfully loaded ${files.length} file(s) containing a total of ${combinedExcelData.length} records!`;
+                statusEl.className = "msg success";
+                document.getElementById('search-controls').classList.remove('hidden');
+            } catch (err) {
+                statusEl.textContent = "Error parsing files: " + err.message;
+                statusEl.className = "msg error";
+            }
         };
 
-        // Search TMS Data with exact / partial constraints
-        window.searchTMSData = function() {
-            const queryVal = document.getElementById('search-query').value.trim();
-            const queryLower = queryVal.toLowerCase();
-            const type = document.getElementById('search-type').value;
+        window.clearField = function(id) {
+            document.getElementById(id).value = '';
+        };
+
+        window.clearAllSearchFields = function() {
+            document.getElementById('search-name').value = '';
+            document.getElementById('search-passport').value = '';
+            document.getElementById('search-bday').value = '';
+            document.getElementById('tms-results-container').innerHTML = '';
+        };
+
+        // Combined Search Execution
+        window.executeSearch = function() {
+            const nameQuery = document.getElementById('search-name').value.trim().toLowerCase();
+            const passportQuery = document.getElementById('search-passport').value.trim().toLowerCase();
+            const bdayQuery = document.getElementById('search-bday').value.trim().toLowerCase();
             const container = document.getElementById('tms-results-container');
             container.innerHTML = '';
 
-            if (!queryVal) {
-                container.innerHTML = `<div class="msg error">Please enter a search value.</div>`;
+            if (!nameQuery && !passportQuery && !bdayQuery) {
+                container.innerHTML = `<div class="msg error" style="text-align:center; margin-top:20px;">Please enter at least one search criteria (Name, Passport, or Birthday).</div>`;
                 return;
             }
 
-            if (excelParsedData.length === 0) {
-                container.innerHTML = `<div class="msg error">Please upload an Excel file first.</div>`;
+            if (combinedExcelData.length === 0) {
+                container.innerHTML = `<div class="msg error" style="text-align:center; margin-top:20px;">Please upload Excel files first.</div>`;
                 return;
             }
 
@@ -352,45 +418,82 @@
                 return "";
             };
 
-            const results = excelParsedData.filter(row => {
+            const results = combinedExcelData.filter(row => {
                 const name = String(getValue(row, ["English Name", "PPT NAME", "Name", "Full Name"])).toLowerCase();
                 const ppt = String(getValue(row, ["Passport", "Passport No", "PPT NO", "PPT NO."])).toLowerCase();
-                const bday = String(getValue(row, ["Birthday", "Birthdate", "Birth Date"])).trim();
+                const bday = String(getValue(row, ["Birthday", "Birthdate", "Birth Date"])).trim().toLowerCase();
 
-                if (type === 'name') return name.includes(queryLower);
-                if (type === 'passport') return ppt.includes(queryLower);
-                if (type === 'birthday') return bday === queryVal; // Exact match required for birthday
-                return false;
+                let matches = true;
+                if (nameQuery && !name.includes(nameQuery)) matches = false;
+                if (passportQuery && !ppt.includes(passportQuery)) matches = false;
+                if (bdayQuery && bday !== bdayQuery && !bday.includes(bdayQuery)) matches = false;
+
+                return matches;
             });
 
             if (results.length === 0) {
                 container.innerHTML = `
-                    <div class="record-card" style="border-left-color: var(--error);">
-                        <div>PPT NAME: N/A</div>
-                        <div>PPT NO.: N/A</div>
-                        <div>W/ RECORD ON TMS: NO</div>
-                        <div>PREV. OFFICE: N/A</div>
-                        <div>PREV. SITE: N/A</div>
-                        <div>LAST STATUS: N/A</div>
-                        <div>LAST STATUS DATE: N/A</div>
-                        <div>TMS ID NUMBER: N/A</div>
-                        <div>AGE STATUS: N/A</div>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>PPT NAME</th>
+                                    <th>PPT NO.</th>
+                                    <th>BOD</th>
+                                    <th>AGE STATUS</th>
+                                    <th>PREV. OFFICE</th>
+                                    <th>PREV. SITE</th>
+                                    <th>LAST STATUS</th>
+                                    <th>LAST STATUS DATE</th>
+                                    <th>TMS ID NUMBER</th>
+                                    <th>W/ RECORD ON TMS</th>
+                                    <th>Copy</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>N/A</td><td>N/A</td><td>N/A</td><td>N/A</td><td>N/A</td><td>N/A</td><td>N/A</td><td>N/A</td><td>N/A</td>
+                                    <td style="color:red; font-weight:bold;">NO</td>
+                                    <td>-</td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>`;
                 return;
             }
 
+            let tableHTML = `
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>PPT NAME</th>
+                                <th>PPT NO.</th>
+                                <th>BOD</th>
+                                <th>AGE STATUS</th>
+                                <th>PREV. OFFICE</th>
+                                <th>PREV. SITE</th>
+                                <th>LAST STATUS</th>
+                                <th>LAST STATUS DATE</th>
+                                <th>TMS ID NUMBER</th>
+                                <th>W/ RECORD ON TMS</th>
+                                <th>Copy</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+
             results.forEach((row, index) => {
                 const pptName = getValue(row, ["English Name", "PPT NAME", "Name", "Full Name"]) || "N/A";
                 const pptNo = getValue(row, ["Passport", "Passport No", "PPT NO", "PPT NO."]) || "N/A";
+                const bdayRaw = getValue(row, ["Birthday", "Birthdate", "Birth Date"]) || "N/A";
                 const office = getValue(row, ["Office", "PREV. OFFICE", "Previous Office"]) || "N/A";
                 const site = getValue(row, ["Site", "PREV. SITE", "Company", "Previous Site"]) || "N/A";
                 const status = getValue(row, ["Status", "LAST STATUS", "Last Status"]) || "N/A";
                 const statusDate = getValue(row, ["Status Date", "LAST STATUS DATE"]) || "N/A";
                 const tmsId = getValue(row, ["TMS ID", "TMS ID NUMBER", "ID Number", "ID"]) || "N/A";
-                const bdayRaw = getValue(row, ["Birthday", "Birthdate", "Birth Date"]);
 
                 let ageStatus = "N/A";
-                if (bdayRaw) {
+                if (bdayRaw !== "N/A") {
                     const birthDate = new Date(bdayRaw);
                     if (!isNaN(birthDate)) {
                         const today = new Date();
@@ -398,31 +501,41 @@
                         const m = today.getMonth() - birthDate.getMonth();
                         if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
                         ageStatus = age < 21 ? "Underage" : "Legal Age";
+                    } else {
+                        ageStatus = String(bdayRaw);
                     }
                 }
 
-                const outputText = 
+                const copyText = 
 `PPT NAME: ${pptName}
 PPT NO.: ${pptNo}
-W/ RECORD ON TMS: YES
+BOD: ${bdayRaw}
+AGE STATUS: ${ageStatus}
 PREV. OFFICE: ${office}
 PREV. SITE: ${site}
 LAST STATUS: ${status}
 LAST STATUS DATE: ${statusDate}
 TMS ID NUMBER: ${tmsId}
-AGE STATUS: ${ageStatus}`;
+W/ RECORD ON TMS: YES`;
 
-                const card = document.createElement('div');
-                card.className = 'record-card';
-                card.innerHTML = `
-                    <div class="card-header">
-                        <strong>Record #${index + 1}</strong>
-                        <button class="btn btn-copy" onclick="copyToClipboard(\`${escapeQuote(outputText)}\`)">📋 Copy Record</button>
-                    </div>
-                    <div>${outputText}</div>
-                `;
-                container.appendChild(card);
+                tableHTML += `
+                    <tr>
+                        <td>${pptName}</td>
+                        <td>${pptNo}</td>
+                        <td>${bdayRaw}</td>
+                        <td style="font-weight:bold;">${ageStatus}</td>
+                        <td>${office}</td>
+                        <td>${site}</td>
+                        <td>${status}</td>
+                        <td>${statusDate}</td>
+                        <td>${tmsId}</td>
+                        <td style="color:green; font-weight:bold;">YES</td>
+                        <td><button class="badge-copy" onclick="copyToClipboard(\`${escapeQuote(copyText)}\`)">Copy</button></td>
+                    </tr>`;
             });
+
+            tableHTML += `</tbody></table></div>`;
+            container.innerHTML = tableHTML;
         };
 
         window.copyToClipboard = function(text) {
@@ -492,7 +605,6 @@ AGE STATUS: ${ageStatus}`;
         };
 
         function showDashboard(user) {
-            // Reveal sidebar panel upon login
             document.getElementById('sidebar-panel').classList.remove('hidden');
             document.querySelectorAll('.auth-section').forEach(el => el.classList.add('hidden'));
             document.getElementById('public-nav').classList.add('hidden');
@@ -524,7 +636,6 @@ AGE STATUS: ${ageStatus}`;
 
         window.logoutUser = function() {
             sessionStorage.removeItem('active_user');
-            // Hide sidebar panel on logout
             document.getElementById('sidebar-panel').classList.add('hidden');
             document.getElementById('view-tms').classList.add('hidden');
             document.getElementById('view-portal').classList.remove('hidden');
