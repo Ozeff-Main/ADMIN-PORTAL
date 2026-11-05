@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Secure Cloud Portal & TMS Record Search</title>
-    <!-- SheetJS CDN for parsing multiple Excel files -->
+    <!-- SheetJS CDN for parsing Excel files -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         :root {
@@ -33,7 +33,7 @@
             min-height: 100vh;
         }
 
-        /* Side Navigation Panel (Hidden until login) */
+        /* Side Navigation Panel */
         .sidebar {
             width: var(--sidebar-width);
             background-color: #0f172a;
@@ -150,7 +150,19 @@
 
         .hidden { display: none !important; }
 
-        /* Data Table Styling matching screenshot */
+        .upload-meta {
+            background: #e2e8f0;
+            padding: 10px 15px;
+            border-radius: 6px;
+            font-size: 13px;
+            margin-bottom: 15px;
+            color: #334155;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* Data Table Styling */
         .table-responsive {
             overflow-x: auto;
             margin-top: 25px;
@@ -198,7 +210,7 @@
 </head>
 <body>
 
-    <!-- SIDE NAVIGATION PANEL (Hidden until logged in) -->
+    <!-- SIDE NAVIGATION PANEL -->
     <div id="sidebar-panel" class="sidebar hidden">
         <h3>Portal Menu</h3>
         <button class="side-btn active" onclick="switchMainView('portal')">🔑 Account Portal</button>
@@ -266,9 +278,15 @@
                 <h2 style="margin-top: 10px;">Passport & TMS Record Search</h2>
             </div>
             
+            <!-- Upload Meta Box (Shows who uploaded and when) -->
+            <div id="upload-meta-box" class="upload-meta hidden">
+                <span>📁 Active Cloud Dataset: <strong id="meta-file-count">0</strong> file(s) loaded</span>
+                <span>👤 Uploaded by: <strong id="meta-uploader">-</strong> | ⏰ Time: <strong id="meta-timestamp">-</strong></span>
+            </div>
+
             <!-- Multi-file Upload Box -->
             <div style="background-color: #f1f5f9; padding: 20px; border-radius: 8px; margin-bottom: 25px; border: 2px dashed var(--border);">
-                <label style="font-weight: bold; margin-bottom: 8px; font-size: 15px;">Upload Employee Excel Files (Select or drag multiple files, up to 10):</label>
+                <label style="font-weight: bold; margin-bottom: 8px; font-size: 15px;">Upload / Replace Employee Excel Files (Saves to Cloud for everyone):</label>
                 <input type="file" id="excel-file-input" accept=".xlsx, .xls" multiple onchange="handleFilesUpload(event)">
                 <div id="file-status-msg" class="msg" style="margin-top: 8px;"></div>
             </div>
@@ -316,7 +334,7 @@
     <!-- Firebase & Application Scripts -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, getDocs, query, where, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyDfR1qBZbTi9HnHJ97T_AM1Mc4yyuPLwUU",
@@ -331,7 +349,7 @@
         const db = getFirestore(app);
         const ADMIN_EMAIL = "anthonyjosephramos30@gmail.com";
 
-        let combinedExcelData = [];
+        let globalEmployeeRecords = [];
 
         window.switchMainView = function(viewName) {
             document.querySelectorAll('.side-btn').forEach(btn => btn.classList.remove('active'));
@@ -343,6 +361,7 @@
                 document.getElementById('view-portal').classList.add('hidden');
                 document.getElementById('view-tms').classList.remove('hidden');
                 event.currentTarget.classList.add('active');
+                loadCloudDataset(); // Load persistent dataset from Firestore when opening tab
             }
         };
 
@@ -351,15 +370,15 @@
             document.getElementById('section-login').classList.toggle('hidden', tab !== 'login');
         };
 
-        // Multi-file Excel Processing (Up to 10 files)
+        // Upload and save to Firestore Cloud Database so it persists across refreshes
         window.handleFilesUpload = async function(e) {
             const files = Array.from(e.target.files);
             const statusEl = document.getElementById('file-status-msg');
             if (files.length === 0) return;
 
-            statusEl.textContent = `Processing ${files.length} file(s)...`;
+            statusEl.textContent = `Processing and uploading ${files.length} file(s) to Cloud...`;
             statusEl.className = "msg";
-            combinedExcelData = [];
+            let parsedRows = [];
 
             try {
                 for (let file of files) {
@@ -367,18 +386,60 @@
                     const workbook = XLSX.read(data, { type: 'array', cellDates: true });
                     workbook.SheetNames.forEach(sheetName => {
                         const sheetJson = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: "" });
-                        combinedExcelData = combinedExcelData.concat(sheetJson);
+                        parsedRows = parsedRows.concat(sheetJson);
                     });
                 }
 
-                statusEl.textContent = `Successfully loaded ${files.length} file(s) containing a total of ${combinedExcelData.length} records!`;
+                const activeUser = JSON.parse(sessionStorage.getItem('active_user') || '{}');
+                const uploaderName = activeUser.name || activeUser.email || "Unknown User";
+                const timestamp = new Date().toLocaleString();
+
+                // Save to Firestore 'datasets' collection
+                await setDoc(doc(db, "tms_storage", "active_dataset"), {
+                    records: parsedRows,
+                    fileCount: files.length,
+                    uploader: uploaderName,
+                    timestamp: timestamp
+                });
+
+                globalEmployeeRecords = parsedRows;
+                updateUploadMeta(files.length, uploaderName, timestamp);
+
+                statusEl.textContent = `Successfully uploaded & synced ${parsedRows.length} records to Cloud Database!`;
                 statusEl.className = "msg success";
                 document.getElementById('search-controls').classList.remove('hidden');
             } catch (err) {
-                statusEl.textContent = "Error parsing files: " + err.message;
+                statusEl.textContent = "Error uploading to cloud: " + err.message;
                 statusEl.className = "msg error";
             }
         };
+
+        // Load dataset from Firebase Cloud Database automatically
+        async function loadCloudDataset() {
+            const statusEl = document.getElementById('file-status-msg');
+            try {
+                const docSnap = await getDoc(doc(db, "tms_storage", "active_dataset"));
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    globalEmployeeRecords = data.records || [];
+                    if (globalEmployeeRecords.length > 0) {
+                        updateUploadMeta(data.fileCount || 1, data.uploader || "System", data.timestamp || "Recent");
+                        document.getElementById('search-controls').classList.remove('hidden');
+                        statusEl.textContent = `Loaded ${globalEmployeeRecords.length} persistent records from Cloud.`;
+                        statusEl.className = "msg success";
+                    }
+                }
+            } catch (e) {
+                console.error("Error loading cloud dataset:", e);
+            }
+        }
+
+        function updateUploadMeta(count, uploader, time) {
+            document.getElementById('meta-file-count').textContent = count;
+            document.getElementById('meta-uploader').textContent = uploader;
+            document.getElementById('meta-timestamp').textContent = time;
+            document.getElementById('upload-meta-box').classList.remove('hidden');
+        }
 
         window.clearField = function(id) {
             document.getElementById(id).value = '';
@@ -400,12 +461,12 @@
             container.innerHTML = '';
 
             if (!nameQuery && !passportQuery && !bdayQuery) {
-                container.innerHTML = `<div class="msg error" style="text-align:center; margin-top:20px;">Please enter at least one search criteria (Name, Passport, or Birthday).</div>`;
+                container.innerHTML = `<div class="msg error" style="text-align:center; margin-top:20px;">Please enter at least one search criteria.</div>`;
                 return;
             }
 
-            if (combinedExcelData.length === 0) {
-                container.innerHTML = `<div class="msg error" style="text-align:center; margin-top:20px;">Please upload Excel files first.</div>`;
+            if (globalEmployeeRecords.length === 0) {
+                container.innerHTML = `<div class="msg error" style="text-align:center; margin-top:20px;">No records found in cloud database. Please upload Excel files.</div>`;
                 return;
             }
 
@@ -418,7 +479,7 @@
                 return "";
             };
 
-            const results = combinedExcelData.filter(row => {
+            const results = globalEmployeeRecords.filter(row => {
                 const name = String(getValue(row, ["English Name", "PPT NAME", "Name", "Full Name"])).toLowerCase();
                 const ppt = String(getValue(row, ["Passport", "Passport No", "PPT NO", "PPT NO."])).toLowerCase();
                 const bday = String(getValue(row, ["Birthday", "Birthdate", "Birth Date"])).trim().toLowerCase();
