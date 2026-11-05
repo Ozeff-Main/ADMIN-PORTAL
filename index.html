@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Website - Portal & Admin Dashboard</title>
+    <title>My Cloud Portal & Admin Dashboard</title>
     <style>
         :root {
             --primary: #2563eb;
@@ -90,12 +90,6 @@
             box-sizing: border-box;
         }
 
-        input:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-        }
-
         .btn {
             width: 100%;
             background-color: var(--primary);
@@ -106,20 +100,11 @@
             font-weight: 600;
             border-radius: 6px;
             cursor: pointer;
-            transition: background 0.2s;
             margin-top: 10px;
         }
 
-        .btn:hover {
-            background-color: var(--primary-hover);
-        }
-
-        .btn-danger {
-            background-color: var(--error);
-        }
-        .btn-danger:hover {
-            background-color: #dc2626;
-        }
+        .btn:hover { background-color: var(--primary-hover); }
+        .btn-danger { background-color: var(--error); }
 
         .msg {
             margin-top: 15px;
@@ -127,15 +112,11 @@
             font-size: 14px;
             font-weight: 500;
         }
-
         .msg.success { color: var(--success); }
         .msg.error { color: var(--error); }
 
-        .hidden {
-            display: none !important;
-        }
+        .hidden { display: none !important; }
 
-        /* Admin Table Styles */
         table {
             width: 100%;
             border-collapse: collapse;
@@ -149,14 +130,9 @@
             font-size: 14px;
         }
 
-        th {
-            background-color: #f1f5f9;
-            font-weight: 600;
-        }
+        th { background-color: #f1f5f9; font-weight: 600; }
 
         .stats {
-            display: flex;
-            justify-content: space-between;
             background: #f1f5f9;
             padding: 10px 15px;
             border-radius: 6px;
@@ -168,9 +144,8 @@
 <body>
 
     <div class="container">
-        <h2>🚀 My Web Portal</h2>
+        <h2>🌐 Cloud Connected Web Portal</h2>
 
-        <!-- Navigation Tabs -->
         <div class="nav-tabs">
             <button class="tab-btn active" onclick="switchTab('register')">Register</button>
             <button class="tab-btn" onclick="switchTab('login')">Login</button>
@@ -192,7 +167,7 @@
                 <label>Password</label>
                 <input type="password" id="reg-password" placeholder="Create a secure password">
             </div>
-            <button class="btn" onclick="registerUser()">Register Account</button>
+            <button class="btn" onclick="registerUser()">Register to Cloud DB</button>
             <div id="reg-msg" class="msg"></div>
         </div>
 
@@ -211,20 +186,19 @@
             <div id="login-msg" class="msg"></div>
         </div>
 
-        <!-- 3. DASHBOARD SECTION (User View) -->
+        <!-- 3. USER DASHBOARD SECTION -->
         <div id="section-dashboard" class="auth-section hidden">
             <h3>User Dashboard</h3>
             <p>Hello, <span id="user-display-name" style="font-weight: bold; color: var(--primary);"></span>!</p>
-            <p>You are successfully logged into your account.</p>
+            <p>You are logged into the live global cloud database.</p>
             <button class="btn btn-danger" onclick="logoutUser()">Log Out</button>
         </div>
 
-        <!-- 4. ADMIN PANEL SECTION (Admin View) -->
+        <!-- 4. ADMIN PANEL SECTION -->
         <div id="section-admin" class="auth-section hidden">
-            <h3>Database & Account Manager</h3>
+            <h3>Cloud Database Accounts</h3>
             <div class="stats">
-                <span>Total Registered Accounts: <span id="total-users">0</span></span>
-                <button onclick="clearDatabase()" style="background: none; border: none; color: var(--error); cursor: pointer; font-weight: bold;">Clear Database</button>
+                <span>Total Live Accounts: <span id="total-users">0</span></span>
             </div>
             <div style="overflow-x: auto;">
                 <table>
@@ -236,65 +210,34 @@
                         </tr>
                     </thead>
                     <tbody id="admin-user-table">
-                        <!-- Populated dynamically via JS -->
+                        <!-- Loaded live from Firebase -->
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
 
-    <!-- JavaScript (Front-End Logic & Database Handler) -->
-    <script>
-        // Initialize or load user database from browser LocalStorage (acts as our lightweight database model)
-        function getUsersDB() {
-            const data = localStorage.getItem('my_website_users');
-            return data ? JSON.parse(data) : [];
-        }
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "firebase/app";
+        import { getFirestore, collection, addDoc, getDocs, query, where } from "firebase/analytics";
 
-        function saveUsersDB(users) {
-            localStorage.setItem('my_website_users', JSON.stringify(users));
-        }
+        // REPLACE THIS WITH YOUR FIREBASE CONFIG FROM STEP 1
+        const firebaseConfig = {
+            apiKey: "AIzaSyDfR1qBZbTi9HnHJ97T_AM1Mc4yyuPLwUU",
+            authDomain: "ozeff-c8c89.firebaseapp.com",
+            projectId: "ozeff-c8c89",
+            storageBucket: "ozeff-c8c89.firebasestorage.app",
+            messagingSenderId: "1056272024415",
+            appId: "1:1056272024415:web:55a0bf7999fcd58ae2acea"
+        };
 
-        function getSession() {
-            const session = localStorage.getItem('my_website_session');
-            return session ? JSON.parse(session) : null;
-        }
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
 
-        function saveSession(user) {
-            localStorage.setItem('my_website_session', JSON.stringify(user));
-        }
-
-        function clearSession() {
-            localStorage.removeItem('my_website_session');
-        }
-
-        // Tab Switching Logic
-        function switchTab(tabName) {
-            document.querySelectorAll('.auth-section').forEach(el => el.classList.add('hidden'));
-            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-
-            if (tabName === 'register') {
-                document.getElementById('section-register').classList.remove('hidden');
-                event.target.classList.add('active');
-            } else if (tabName === 'login') {
-                const session = getSession();
-                if (session) {
-                    // If already logged in, show dashboard instead
-                    document.getElementById('section-dashboard').classList.remove('hidden');
-                    document.getElementById('user-display-name').textContent = session.name;
-                } else {
-                    document.getElementById('section-login').classList.remove('hidden');
-                }
-                event.target.classList.add('active');
-            } else if (tabName === 'admin') {
-                document.getElementById('section-admin').classList.remove('hidden');
-                event.target.classList.add('active');
-                loadAdminTable();
-            }
-        }
-
-        // Register Function
-        function registerUser() {
+        // Expose functions globally for UI buttons
+        window.registerUser = async function() {
             const name = document.getElementById('reg-name').value.trim();
             const email = document.getElementById('reg-email').value.trim();
             const password = document.getElementById('reg-password').value.trim();
@@ -306,99 +249,133 @@
                 return;
             }
 
-            let users = getUsersDB();
-            const existing = users.find(u => u.email === email);
-            if (existing) {
-                msgEl.textContent = "An account with this email already exists!";
+            msgEl.textContent = "Saving to Cloud Database...";
+            msgEl.className = "msg";
+
+            try {
+                // Check if user already exists
+                const q = query(collection(db, "users"), where("email", "==", email));
+                const querySnapshot = await getDocs(q);
+
+                if (!querySnapshot.empty) {
+                    msgEl.textContent = "An account with this email already exists!";
+                    msgEl.className = "msg error";
+                    return;
+                }
+
+                // Add to Cloud Database
+                await addDoc(collection(db, "users"), {
+                    name: name,
+                    email: email,
+                    password: password,
+                    joined: new Date().toLocaleDateString()
+                });
+
+                msgEl.textContent = "Registration successful! Saved to Cloud Database.";
+                msgEl.className = "msg success";
+
+                document.getElementById('reg-name').value = '';
+                document.getElementById('reg-email').value = '';
+                document.getElementById('reg-password').value = '';
+            } catch (e) {
+                msgEl.textContent = "Error saving data: " + e.message;
                 msgEl.className = "msg error";
-                return;
             }
+        };
 
-            const newUser = {
-                name: name,
-                email: email,
-                password: password,
-                joined: new Date().toLocaleDateString()
-            };
-
-            users.push(newUser);
-            saveUsersDB(users);
-
-            msgEl.textContent = "Registration successful! You can now log in.";
-            msgEl.className = "msg success";
-
-            // Clear inputs
-            document.getElementById('reg-name').value = '';
-            document.getElementById('reg-email').value = '';
-            document.getElementById('reg-password').value = '';
-        }
-
-        // Login Function
-        function loginUser() {
+        window.loginUser = async function() {
             const email = document.getElementById('login-email').value.trim();
             const password = document.getElementById('login-password').value.trim();
             const msgEl = document.getElementById('login-msg');
 
-            let users = getUsersDB();
-            const user = users.find(u => u.email === email && u.password === password);
+            msgEl.textContent = "Verifying credentials...";
+            msgEl.className = "msg";
 
-            if (!user) {
-                msgEl.textContent = "Invalid email or password.";
+            try {
+                const q = query(collection(db, "users"), where("email", "==", email), where("password", "==", password));
+                const querySnapshot = await getDocs(q);
+
+                if (querySnapshot.empty) {
+                    msgEl.textContent = "Invalid email or password.";
+                    msgEl.className = "msg error";
+                    return;
+                }
+
+                const userData = querySnapshot.docs[0].data();
+                sessionStorage.setItem('active_user', JSON.stringify(userData));
+
+                msgEl.textContent = "Login successful!";
+                msgEl.className = "msg success";
+
+                setTimeout(() => {
+                    document.getElementById('section-login').classList.add('hidden');
+                    document.getElementById('section-dashboard').classList.remove('hidden');
+                    document.getElementById('user-display-name').textContent = userData.name;
+                }, 500);
+            } catch (e) {
+                msgEl.textContent = "Login error: " + e.message;
                 msgEl.className = "msg error";
-                return;
             }
+        };
 
-            saveSession(user);
-            msgEl.textContent = "Login successful!";
-            msgEl.className = "msg success";
+        window.loadAdminTable = async function() {
+            const tbody = document.getElementById('admin-user-table');
+            tbody.innerHTML = `<tr><td colspan="3" style="text-align: center;">Loading from cloud...</td></tr>`;
 
-            setTimeout(() => {
-                document.getElementById('section-login').classList.add('hidden');
-                document.getElementById('section-dashboard').classList.remove('hidden');
-                document.getElementById('user-display-name').textContent = user.name;
-            }, 500);
-        }
+            try {
+                const querySnapshot = await getDocs(collection(db, "users"));
+                document.getElementById('total-users').textContent = querySnapshot.size;
 
-        // Logout Function
-        function logoutUser() {
-            clearSession();
+                tbody.innerHTML = '';
+                if (querySnapshot.empty) {
+                    tbody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: var(--text-light);">No accounts found in cloud database.</td></tr>`;
+                    return;
+                }
+
+                querySnapshot.forEach((doc) => {
+                    const u = doc.data();
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${escapeHtml(u.name)}</td>
+                        <td>${escapeHtml(u.email)}</td>
+                        <td>${u.joined}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: var(--error);">Error loading data: ${e.message}</td></tr>`;
+            }
+        };
+
+        window.logoutUser = function() {
+            sessionStorage.removeItem('active_user');
             document.getElementById('section-dashboard').classList.add('hidden');
             document.getElementById('section-login').classList.remove('hidden');
-            document.getElementById('login-email').value = '';
-            document.getElementById('login-password').value = '';
-            document.getElementById('login-msg').textContent = '';
-        }
+        };
 
-        // Admin Table Loader
-        function loadAdminTable() {
-            const users = getUsersDB();
-            const tbody = document.getElementById('admin-user-table');
-            document.getElementById('total-users').textContent = users.length;
+        window.switchTab = function(tabName) {
+            document.querySelectorAll('.auth-section').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
 
-            tbody.innerHTML = '';
-            if (users.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: var(--text-light);">No registered accounts found yet.</td></tr>`;
-                return;
+            if (tabName === 'register') {
+                document.getElementById('section-register').classList.remove('hidden');
+                event.target.classList.add('active');
+            } else if (tabName === 'login') {
+                const active = sessionStorage.getItem('active_user');
+                if (active) {
+                    const user = JSON.parse(active);
+                    document.getElementById('section-dashboard').classList.remove('hidden');
+                    document.getElementById('user-display-name').textContent = user.name;
+                } else {
+                    document.getElementById('section-login').classList.remove('hidden');
+                }
+                event.target.classList.add('active');
+            } else if (tabName === 'admin') {
+                document.getElementById('section-admin').classList.remove('hidden');
+                event.target.classList.add('active');
+                window.loadAdminTable();
             }
-
-            users.forEach(u => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${escapeHtml(u.name)}</td>
-                    <td>${escapeHtml(u.email)}</td>
-                    <td>${u.joined}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-        }
-
-        function clearDatabase() {
-            if (confirm("Are you sure you want to clear all user accounts?")) {
-                localStorage.removeItem('my_website_users');
-                localStorage.removeItem('my_website_session');
-                loadAdminTable();
-            }
-        }
+        };
 
         function escapeHtml(str) {
             return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
