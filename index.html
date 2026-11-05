@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My First Free Website</title>
+    <!-- CSS: This is the "Front-End" design styling -->
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .card {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        p {
+            color: #7f8c8d;
+            font-size: 15px;
+            margin-bottom: 25px;
+        }
+        .btn {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            font-size: 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+        .btn:hover {
+            background-color: #2980b9;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h1>Hello, World! 🚀</h1>
+        <p>I just built my very own webpage completely from scratch for $0. Welcome to my corner of the internet.</p>
+        <button class="btn" onclick="showAlert()">Click Me!</button>
+    </div>
+
+    <!-- JavaScript: This handles light client-side interactivity -->
+    <script>
+        function showAlert() {
+            alert('Awesome! Your front-end JavaScript code is working perfectly.');
+        }
+    </script>
+
+</body>
+</html>
