@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Secure Cloud Portal & TMS Record Checker</title>
-    <!-- SheetJS CDN for parsing Excel files directly in the browser -->
+    <!-- SheetJS CDN for parsing Excel files -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         :root {
@@ -33,7 +33,7 @@
             min-height: 100vh;
         }
 
-        /* Side Navigation Panel */
+        /* Side Navigation Panel (Hidden by default until login) */
         .sidebar {
             width: var(--sidebar-width);
             background-color: #0f172a;
@@ -69,6 +69,7 @@
             display: flex;
             align-items: center;
             gap: 10px;
+            width: 100%;
         }
 
         .side-btn:hover, .side-btn.active {
@@ -159,9 +160,6 @@
             margin-bottom: 10px;
         }
 
-        .badge-underage { color: #dc2626; font-weight: bold; }
-        .badge-legal { color: #16a34a; font-weight: bold; }
-
         table { width: 100%; border-collapse: collapse; margin-top: 15px; }
         th, td { border: 1px solid var(--border); padding: 10px; text-align: left; font-size: 14px; }
         th { background-color: #f1f5f9; font-weight: 600; }
@@ -169,8 +167,8 @@
 </head>
 <body>
 
-    <!-- SIDE NAVIGATION PANEL -->
-    <div class="sidebar">
+    <!-- SIDE NAVIGATION PANEL (Hidden until logged in) -->
+    <div id="sidebar-panel" class="sidebar hidden">
         <h3>Portal Menu</h3>
         <button class="side-btn active" onclick="switchMainView('portal')">🔑 Account Portal</button>
         <button class="side-btn" onclick="switchMainView('tms')">📋 TMS Record Checker</button>
@@ -181,7 +179,7 @@
         
         <!-- VIEW 1: AUTHENTICATION & ADMIN PORTAL -->
         <div id="view-portal" class="container">
-            <h2>🌐 Cloud Connected Portal</h2>
+            <h2>🌐 Secure Cloud Portal</h2>
 
             <div class="nav-tabs" id="public-nav" style="display: flex; gap: 10px; margin-bottom: 20px;">
                 <button class="btn" style="flex:1" onclick="switchAuthTab('register')">Register</button>
@@ -211,10 +209,11 @@
             <div id="section-dashboard" class="auth-section hidden">
                 <h3>User Dashboard</h3>
                 <p>Hello, <span id="user-display-name" style="font-weight: bold; color: var(--primary);"></span>!</p>
+                <p>You are successfully logged in. You can now use the side menu to access the TMS Record Checker.</p>
                 <div id="admin-button-container" class="hidden" style="margin-top: 15px;">
                     <button class="btn btn-admin" onclick="openAdminPanel()">🔒 Open Admin Database Panel</button>
                 </div>
-                <button class="btn btn-danger" onclick="logoutUser()" style="margin-top: 10px;">Log Out</button>
+                <button class="btn btn-danger" onclick="logoutUser()" style="margin-top: 15px;">Log Out</button>
             </div>
 
             <!-- ADMIN PANEL -->
@@ -225,29 +224,27 @@
                     <thead><tr><th>Name</th><th>Email</th><th>Joined</th></tr></thead>
                     <tbody id="admin-user-table"></tbody>
                 </table>
-                <button class="btn" onclick="backToDashboard()" style="margin-top: 15px; background-color: var(--text-light);">Back</button>
+                <button class="btn" onclick="backToDashboard()" style="margin-top: 15px; background-color: var(--text-light);">Back to Dashboard</button>
             </div>
         </div>
 
-        <!-- VIEW 2: PASSPORT & TMS RECORD CHECKER -->
+        <!-- VIEW 2: PASSPORT & TMS RECORD CHECKER (Protected) -->
         <div id="view-tms" class="container hidden">
             <h2>📋 Passport & TMS Record Checking</h2>
             
-            <!-- Step 1: Excel Upload -->
             <div style="background-color: #f1f5f9; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
                 <label style="font-weight: bold; margin-bottom: 8px;">Step 1: Upload Employee Excel File (.xlsx / .xls)</label>
                 <input type="file" id="excel-file-input" accept=".xlsx, .xls" onchange="handleFileUpload(event)">
                 <div id="file-status-msg" class="msg" style="text-align: left;"></div>
             </div>
 
-            <!-- Step 2: Search Controls -->
             <div id="search-controls" class="hidden">
                 <div class="form-group">
                     <label>Search By Criteria:</label>
                     <select id="search-type">
-                        <option value="name">English Name (Shows all matches)</option>
-                        <option value="passport">Passport Number (Shows all matches)</option>
-                        <option value="birthday">Birthday (Exact Match - e.g. YYYY-MM-DD or MM/DD/YYYY)</option>
+                        <option value="name">English Name (Shows all possible matches)</option>
+                        <option value="passport">Passport Number (Shows all possible matches)</option>
+                        <option value="birthday">Birthday (Exact match required)</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -256,7 +253,6 @@
                 <button class="btn" onclick="searchTMSData()">Search Record</button>
             </div>
 
-            <!-- Step 3: Search Results Container -->
             <div id="tms-results-container" style="margin-top: 20px;"></div>
         </div>
 
@@ -280,20 +276,19 @@
         const db = getFirestore(app);
         const ADMIN_EMAIL = "anthonyjosephramos30@gmail.com";
 
-        // Local storage variable for Excel data
         let excelParsedData = [];
 
-        // View Switcher (Sidebar)
+        // Sidebar Navigation Switcher
         window.switchMainView = function(viewName) {
             document.querySelectorAll('.side-btn').forEach(btn => btn.classList.remove('active'));
             if (viewName === 'portal') {
                 document.getElementById('view-portal').classList.remove('hidden');
                 document.getElementById('view-tms').classList.add('hidden');
-                event.target.classList.add('active');
+                event.currentTarget.classList.add('active');
             } else if (viewName === 'tms') {
                 document.getElementById('view-portal').classList.add('hidden');
                 document.getElementById('view-tms').classList.remove('hidden');
-                event.target.classList.add('active');
+                event.currentTarget.classList.add('active');
             }
         };
 
@@ -302,11 +297,10 @@
             document.getElementById('section-login').classList.toggle('hidden', tab !== 'login');
         };
 
-        // Parse Excel File
+        // Excel Handling
         window.handleFileUpload = function(e) {
             const file = e.target.files[0];
             const statusEl = document.getElementById('file-status-msg');
-
             if (!file) return;
 
             statusEl.textContent = "Processing Excel file...";
@@ -331,9 +325,10 @@
             reader.readAsArrayBuffer(file);
         };
 
-        // Search TMS Data
+        // Search TMS Data with exact / partial constraints
         window.searchTMSData = function() {
-            const queryVal = document.getElementById('search-query').value.trim().toLowerCase();
+            const queryVal = document.getElementById('search-query').value.trim();
+            const queryLower = queryVal.toLowerCase();
             const type = document.getElementById('search-type').value;
             const container = document.getElementById('tms-results-container');
             container.innerHTML = '';
@@ -348,7 +343,6 @@
                 return;
             }
 
-            // Helper to get matching key regardless of exact column capitalization
             const getValue = (row, possibleKeys) => {
                 for (let k of Object.keys(row)) {
                     for (let p of possibleKeys) {
@@ -361,16 +355,15 @@
             const results = excelParsedData.filter(row => {
                 const name = String(getValue(row, ["English Name", "PPT NAME", "Name", "Full Name"])).toLowerCase();
                 const ppt = String(getValue(row, ["Passport", "Passport No", "PPT NO", "PPT NO."])).toLowerCase();
-                const bday = String(getValue(row, ["Birthday", "Birthdate", "Birth Date"])).toLowerCase();
+                const bday = String(getValue(row, ["Birthday", "Birthdate", "Birth Date"])).trim();
 
-                if (type === 'name') return name.includes(queryVal);
-                if (type === 'passport') return ppt.includes(queryVal);
-                if (type === 'birthday') return bday === queryVal || bday.includes(queryVal);
+                if (type === 'name') return name.includes(queryLower);
+                if (type === 'passport') return ppt.includes(queryLower);
+                if (type === 'birthday') return bday === queryVal; // Exact match required for birthday
                 return false;
             });
 
             if (results.length === 0) {
-                // If not found in file
                 container.innerHTML = `
                     <div class="record-card" style="border-left-color: var(--error);">
                         <div>PPT NAME: N/A</div>
@@ -386,7 +379,6 @@
                 return;
             }
 
-            // Render output cards
             results.forEach((row, index) => {
                 const pptName = getValue(row, ["English Name", "PPT NAME", "Name", "Full Name"]) || "N/A";
                 const pptNo = getValue(row, ["Passport", "Passport No", "PPT NO", "PPT NO."]) || "N/A";
@@ -397,7 +389,6 @@
                 const tmsId = getValue(row, ["TMS ID", "TMS ID NUMBER", "ID Number", "ID"]) || "N/A";
                 const bdayRaw = getValue(row, ["Birthday", "Birthdate", "Birth Date"]);
 
-                // Calculate Age Status
                 let ageStatus = "N/A";
                 if (bdayRaw) {
                     const birthDate = new Date(bdayRaw);
@@ -446,7 +437,7 @@ AGE STATUS: ${ageStatus}`;
             return str.replace(/`/g, "\\`").replace(/\$/g, "\\$");
         }
 
-        // Auth implementations
+        // Authentication & Session Handler
         window.registerUser = async function() {
             const name = document.getElementById('reg-name').value.trim();
             const email = document.getElementById('reg-email').value.trim();
@@ -469,7 +460,7 @@ AGE STATUS: ${ageStatus}`;
                 }
 
                 await addDoc(collection(db, "users"), { name, email, password, joined: new Date().toLocaleDateString() });
-                msgEl.textContent = "Registration successful!";
+                msgEl.textContent = "Registration successful! You can now log in.";
                 msgEl.className = "msg success";
             } catch (e) {
                 msgEl.textContent = e.message;
@@ -501,9 +492,13 @@ AGE STATUS: ${ageStatus}`;
         };
 
         function showDashboard(user) {
+            // Reveal sidebar panel upon login
+            document.getElementById('sidebar-panel').classList.remove('hidden');
             document.querySelectorAll('.auth-section').forEach(el => el.classList.add('hidden'));
+            document.getElementById('public-nav').classList.add('hidden');
             document.getElementById('section-dashboard').classList.remove('hidden');
             document.getElementById('user-display-name').textContent = user.name;
+            
             if (user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
                 document.getElementById('admin-button-container').classList.remove('hidden');
             }
@@ -529,9 +524,23 @@ AGE STATUS: ${ageStatus}`;
 
         window.logoutUser = function() {
             sessionStorage.removeItem('active_user');
+            // Hide sidebar panel on logout
+            document.getElementById('sidebar-panel').classList.add('hidden');
+            document.getElementById('view-tms').classList.add('hidden');
+            document.getElementById('view-portal').classList.remove('hidden');
             document.querySelectorAll('.auth-section').forEach(el => el.classList.add('hidden'));
-            document.getElementById('section-register').classList.remove('hidden');
+            document.getElementById('public-nav').classList.remove('hidden');
+            document.getElementById('section-login').classList.remove('hidden');
+            document.getElementById('login-email').value = '';
+            document.getElementById('login-password').value = '';
         };
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const active = sessionStorage.getItem('active_user');
+            if (active) {
+                showDashboard(JSON.parse(active));
+            }
+        });
     </script>
 </body>
 </html>
