@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Cloud Portal & Admin Dashboard</title>
+    <title>Secure Cloud Portal & Admin Dashboard</title>
     <style>
         :root {
             --primary: #2563eb;
@@ -15,6 +15,7 @@
             --border: #e2e8f0;
             --error: #ef4444;
             --success: #22c55e;
+            --admin-bg: #7c3aed;
         }
 
         body {
@@ -105,6 +106,8 @@
 
         .btn:hover { background-color: var(--primary-hover); }
         .btn-danger { background-color: var(--error); }
+        .btn-admin { background-color: var(--admin-bg); }
+        .btn-admin:hover { background-color: #6d28d9; }
 
         .msg {
             margin-top: 15px;
@@ -144,12 +147,12 @@
 <body>
 
     <div class="container">
-        <h2>🌐 Cloud Connected Web Portal</h2>
+        <h2>🌐 Secure Cloud Portal</h2>
 
-        <div class="nav-tabs">
+        <!-- Public Navigation Tabs (Admin Tab Hidden) -->
+        <div class="nav-tabs" id="public-nav">
             <button class="tab-btn active" onclick="switchTab('register')">Register</button>
             <button class="tab-btn" onclick="switchTab('login')">Login</button>
-            <button class="tab-btn" onclick="switchTab('admin')">Admin Panel</button>
         </div>
 
         <!-- 1. REGISTER SECTION -->
@@ -167,7 +170,7 @@
                 <label>Password</label>
                 <input type="password" id="reg-password" placeholder="Create a secure password">
             </div>
-            <button class="btn" onclick="registerUser()">Register to Cloud DB</button>
+            <button class="btn" onclick="registerUser()">Register Account</button>
             <div id="reg-msg" class="msg"></div>
         </div>
 
@@ -190,13 +193,19 @@
         <div id="section-dashboard" class="auth-section hidden">
             <h3>User Dashboard</h3>
             <p>Hello, <span id="user-display-name" style="font-weight: bold; color: var(--primary);"></span>!</p>
-            <p>You are logged into the live global cloud database.</p>
-            <button class="btn btn-danger" onclick="logoutUser()">Log Out</button>
+            <p>You are successfully logged in.</p>
+            
+            <!-- Hidden Admin Button (Only appears if logged in as admin) -->
+            <div id="admin-button-container" class="hidden" style="margin-top: 20px;">
+                <button class="btn btn-admin" onclick="openAdminPanel()">🔒 Open Admin Database Panel</button>
+            </div>
+
+            <button class="btn btn-danger" onclick="logoutUser()" style="margin-top: 10px;">Log Out</button>
         </div>
 
-        <!-- 4. ADMIN PANEL SECTION -->
+        <!-- 4. ADMIN PANEL SECTION (Hidden by default) -->
         <div id="section-admin" class="auth-section hidden">
-            <h3>Cloud Database Accounts</h3>
+            <h3>🔒 Admin Database Accounts</h3>
             <div class="stats">
                 <span>Total Live Accounts: <span id="total-users">0</span></span>
             </div>
@@ -214,10 +223,11 @@
                     </tbody>
                 </table>
             </div>
+            <button class="btn" onclick="backToDashboard()" style="margin-top: 15px; background-color: var(--text-light);">Back to Dashboard</button>
         </div>
     </div>
 
-    <!-- Firebase SDKs with direct HTTPS URL paths for pure browser execution -->
+    <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getFirestore, collection, addDoc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
@@ -231,11 +241,12 @@
             appId: "1:1056272024415:web:55a0bf7999fcd58ae2acea"
         };
 
-        // Initialize Firebase
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // Expose functions globally for HTML onclick attributes
+        // 👉 CHANGE THIS TO YOUR ADMIN EMAIL
+        const ADMIN_EMAIL = "anthonyjosephramos30@gmail.com";
+
         window.registerUser = async function() {
             const name = document.getElementById('reg-name').value.trim();
             const email = document.getElementById('reg-email').value.trim();
@@ -252,7 +263,6 @@
             msgEl.className = "msg";
 
             try {
-                // Check if user already exists
                 const q = query(collection(db, "users"), where("email", "==", email));
                 const querySnapshot = await getDocs(q);
 
@@ -262,7 +272,6 @@
                     return;
                 }
 
-                // Add to Cloud Database
                 await addDoc(collection(db, "users"), {
                     name: name,
                     email: email,
@@ -270,7 +279,7 @@
                     joined: new Date().toLocaleDateString()
                 });
 
-                msgEl.textContent = "Registration successful! Saved to Cloud Database.";
+                msgEl.textContent = "Registration successful! You can now log in.";
                 msgEl.className = "msg success";
 
                 document.getElementById('reg-name').value = '';
@@ -307,13 +316,38 @@
                 msgEl.className = "msg success";
 
                 setTimeout(() => {
-                    document.getElementById('section-login').classList.add('hidden');
-                    document.getElementById('section-dashboard').classList.remove('hidden');
-                    document.getElementById('user-display-name').textContent = userData.name;
+                    showDashboard(userData);
                 }, 500);
             } catch (e) {
                 msgEl.textContent = "Login error: " + e.message;
                 msgEl.className = "msg error";
+            }
+        };
+
+        function showDashboard(user) {
+            document.querySelectorAll('.auth-section').forEach(el => el.classList.add('hidden'));
+            document.getElementById('public-nav').classList.add('hidden');
+            document.getElementById('section-dashboard').classList.remove('hidden');
+            document.getElementById('user-display-name').textContent = user.name;
+
+            // Check if logged-in user is the admin
+            if (user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+                document.getElementById('admin-button-container').classList.remove('hidden');
+            } else {
+                document.getElementById('admin-button-container').classList.add('hidden');
+            }
+        }
+
+        window.openAdminPanel = async function() {
+            document.querySelectorAll('.auth-section').forEach(el => el.classList.add('hidden'));
+            document.getElementById('section-admin').classList.remove('hidden');
+            window.loadAdminTable();
+        };
+
+        window.backToDashboard = function() {
+            const active = sessionStorage.getItem('active_user');
+            if (active) {
+                showDashboard(JSON.parse(active));
             }
         };
 
@@ -348,8 +382,12 @@
 
         window.logoutUser = function() {
             sessionStorage.removeItem('active_user');
-            document.getElementById('section-dashboard').classList.add('hidden');
+            document.querySelectorAll('.auth-section').forEach(el => el.classList.add('hidden'));
+            document.getElementById('public-nav').classList.remove('hidden');
             document.getElementById('section-login').classList.remove('hidden');
+            document.getElementById('login-email').value = '';
+            document.getElementById('login-password').value = '';
+            document.getElementById('login-msg').textContent = '';
         };
 
         window.switchTab = function(tabName) {
@@ -362,19 +400,21 @@
             } else if (tabName === 'login') {
                 const active = sessionStorage.getItem('active_user');
                 if (active) {
-                    const user = JSON.parse(active);
-                    document.getElementById('section-dashboard').classList.remove('hidden');
-                    document.getElementById('user-display-name').textContent = user.name;
+                    showDashboard(JSON.parse(active));
                 } else {
                     document.getElementById('section-login').classList.remove('hidden');
                 }
                 event.target.classList.add('active');
-            } else if (tabName === 'admin') {
-                document.getElementById('section-admin').classList.remove('hidden');
-                event.target.classList.add('active');
-                window.loadAdminTable();
             }
         };
+
+        // Check active session on load
+        window.addEventListener('DOMContentLoaded', () => {
+            const active = sessionStorage.getItem('active_user');
+            if (active) {
+                showDashboard(JSON.parse(active));
+            }
+        });
 
         function escapeHtml(str) {
             return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
