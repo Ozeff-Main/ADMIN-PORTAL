@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modern User Auth & Admin Dashboard</title>
+    <!-- Tailwind CSS for UI styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Font (Inter) -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+        .fade-in {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="min-h-screen text-slate-800 flex flex-col">
+
+    <!-- Top Navigation Header -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-bold text-xl shadow-md shadow-indigo-200">
+                    <i class="fa-solid me-0.5 fa-shield-halved"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-slate-900 leading-tight">AuthHub</h1>
+                    <p class="text-xs text-slate-500 font-medium">Cloud Authentication Portal</p>
+                </div>
+            </div>
+
+            <!-- View Switcher Tabs -->
+            <nav class="flex bg-slate-100 p-1 rounded-xl text-sm font-medium">
+                <button id="tab-auth" onclick="switchTab('auth')" class="px-4 py-2 rounded-lg text-indigo-600 bg-white shadow-sm transition-all duration-200 flex items-center gap-2">
+                    <i class="fa-solid fa-user-lock"></i>
+                    <span>User Portal</span>
+                </button>
+                <button id="tab-admin" onclick="switchTab('admin')" class="px-4 py-2 rounded-lg text-slate-600 hover:text-slate-900 transition-all duration-200 flex items-center gap-2">
+                    <i class="fa-solid fa-user-gear"></i>
+                    <span>Admin Dashboard</span>
+                    <span id="badge-user-count" class="bg-indigo-100 text-indigo-700 text-xs px-2 py-0.5 rounded-full font-bold ml-1">0</span>
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Notification / Banner Toast -->
+    <div id="toast" class="hidden fixed top-20 right-5 z-50 max-w-sm w-full bg-white border border-slate-200 shadow-xl rounded-xl p-4 transition-all duration-300">
+        <div class="flex items-start gap-3">
+            <div id="toast-icon" class="text-emerald-500 mt-0.5">
+                <i class="fa-solid fa-circle-check text-lg"></i>
+            </div>
+            <div class="flex-1">
+                <h4 id="toast-title" class="font-semibold text-sm text-slate-900">Success</h4>
+                <p id="toast-msg" class="text-xs text-slate-500 mt-0.5">Action completed successfully.</p>
+            </div>
+            <button onclick="hideToast()" class="text-slate-400 hover:text-slate-600 text-sm">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+
+        <!-- VIEW 1: USER AUTHENTICATION PORTAL -->
+        <section id="view-auth" class="fade-in max-w-md mx-auto my-8">
+            
+            <!-- Logged Out Container -->
+            <div id="auth-forms-container" class="bg-white border border-slate-200 rounded-2xl shadow-xl shadow-slate-200/50 p-6 sm:p-8">
+                
+                <!-- Toggle Form Selector -->
+                <div class="flex border-b border-slate-100 pb-4 mb-6">
+                    <button id="btn-show-login" onclick="toggleAuthMode('login')" class="flex-1 text-center font-semibold pb-2 text-indigo-600 border-b-2 border-indigo-600">
+                        Sign In
+                    </button>
+                    <button id="btn-show-register" onclick="toggleAuthMode('register')" class="flex-1 text-center font-semibold pb-2 text-slate-400 hover:text-slate-600 border-b-2 border-transparent">
+                        Create Account
+                    </button>
+                </div>
+
+                <!-- LOGIN FORM -->
+                <form id="form-login" onsubmit="handleLogin(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Email Address</label>
+                        <div class="relative">
+                            <i class="fa-regular fa-envelope absolute left-3.5 top-3.5 text-slate-400"></i>
+                            <input type="email" id="login-email" required placeholder="name@example.com" class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm transition-all">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Password</label>
+                        <div class="relative">
+                            <i class="fa-solid fa-lock absolute left-3.5 top-3.5 text-slate-400"></i>
+                            <input type="password" id="login-password" required placeholder="••••••••" class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm transition-all">
+                        </div>
+                    </div>
+                    <button type="submit" id="btn-login" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-xl text-sm shadow-md shadow-indigo-200 transition-all flex items-center justify-center gap-2">
+                        <span>Sign In</span>
+                        <i class="fa-solid fa-arrow-right text-xs"></i>
+                    </button>
+                </form>
+
+                <!-- REGISTER FORM -->
+                <form id="form-register" onsubmit="handleRegister(event)" class="space-y-4 hidden">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Full Name</label>
+                        <div class="relative">
+                            <i class="fa-regular fa-user absolute left-3.5 top-3.5 text-slate-400"></i>
+                            <input type="text" id="reg-name" required placeholder="Jane Doe" class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm transition-all">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Email Address</label>
+                        <div class="relative">
+                            <i class="fa-regular fa-envelope absolute left-3.5 top-3.5 text-slate-400"></i>
+                            <input type="email" id="reg-email" required placeholder="name@example.com" class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm transition-all">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Role / Occupation</label>
+                        <div class="relative">
+                            <i class="fa-solid fa-briefcase absolute left-3.5 top-3.5 text-slate-400"></i>
+                            <input type="text" id="reg-role" placeholder="e.g., Software Developer" class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm transition-all">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Password</label>
+                        <div class="relative">
+                            <i class="fa-solid fa-lock absolute left-3.5 top-3.5 text-slate-400"></i>
+                            <input type="password" id="reg-password" minlength="6" required placeholder="Min. 6 characters" class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm transition-all">
+                        </div>
+                    </div>
+                    <button type="submit" id="btn-register" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2.5 rounded-xl text-sm shadow-md shadow-emerald-200 transition-all flex items-center justify-center gap-2">
+                        <span>Create Account</span>
+                        <i class="fa-solid fa-user-plus text-xs"></i>
+                    </button>
+                </form>
+
+            </div>
+
+            <!-- Logged In Profile Dashboard Card -->
+            <div id="logged-in-container" class="hidden bg-white border border-slate-200 rounded-2xl shadow-xl p-6 sm:p-8 text-center">
+                <div class="w-20 h-20 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl font-bold">
+                    <span id="user-avatar">U</span>
+                </div>
+                <h3 id="user-display-name" class="text-xl font-bold text-slate-900">User Name</h3>
+                <p id="user-display-email" class="text-sm text-slate-500 mb-1">user@example.com</p>
+                <span id="user-display-role" class="inline-block bg-slate-100 text-slate-600 text-xs px-3 py-1 rounded-full font-medium mb-6">Member</span>
+
+                <div class="border-t border-slate-100 pt-6">
+                    <button onclick="handleLogout()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2.5 rounded-xl text-sm transition-all flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                        <span>Sign Out</span>
+                    </button>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- VIEW 2: ADMIN DASHBOARD (MEMBER ACCESS TO ALL ACCOUNTS) -->
+        <section id="view-admin" class="fade-in hidden">
+            
+            <!-- Dashboard Banner -->
+            <div class="bg-gradient-to-r from-slate-900 to-indigo-950 text-white rounded-2xl p-6 mb-8 shadow-lg relative overflow-hidden">
+                <div class="relative z-10">
+                    <div class="inline-flex items-center gap-2 bg-indigo-500/20 text-indigo-300 text-xs px-3 py-1 rounded-full font-medium mb-3 border border-indigo-400/20">
+                        <i class="fa-solid fa-database text-xs"></i> Firestore Database Connected
+                    </div>
+                    <h2 class="text-2xl font-bold mb-2">Registered Accounts Database</h2>
+                    <p class="text-slate-300 text-sm max-w-2xl">
+                        Real-time overview of all accounts registered in your system. As soon as a user creates an account, it appears here automatically.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Stats Bar -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                <div class="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl">
+                        <i class="fa-solid fa-users"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-500 font-medium uppercase">Total Users</p>
+                        <h3 id="stat-total-users" class="text-xl font-bold text-slate-900">0</h3>
+                    </div>
+                </div>
+
+                <div class="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl">
+                        <i class="fa-solid fa-clock font-normal"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-500 font-medium uppercase">Status</p>
+                        <h3 class="text-xl font-bold text-slate-900">Live Syncing</h3>
+                    </div>
+                </div>
+
+                <div class="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center text-xl">
+                        <i class="fa-solid fa-user-check"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-500 font-medium uppercase">Current Session</p>
+                        <h3 id="stat-current-session" class="text-sm font-semibold text-slate-900 truncate max-w-[150px]">Guest Access</h3>
+                    </div>
+                </div>
+            </div>
+
+            <!-- User Accounts Data Table -->
+            <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+                <div class="p-4 sm:p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <h3 class="font-bold text-slate-900">User Records</h3>
+                        <p class="text-xs text-slate-500">List of all user profiles registered in Firebase Firestore</p>
+                    </div>
+                    <!-- Quick Search Input -->
+                    <div class="relative max-w-xs w-full">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-400 text-xs"></i>
+                        <input type="text" id="user-search" oninput="filterUsers()" placeholder="Search name or email..." class="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                </div>
+
+                <!-- Table View -->
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-slate-50 border-b border-slate-100 text-xs text-slate-500 uppercase tracking-wider">
+                            <tr>
+                                <th class="px-6 py-3 font-semibold">User Profile</th>
+                                <th class="px-6 py-3 font-semibold">Email</th>
+                                <th class="px-6 py-3 font-semibold">Role</th>
+                                <th class="px-6 py-3 font-semibold">Registered Date</th>
+                                <th class="px-6 py-3 font-semibold text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-table-body" class="divide-y divide-slate-100">
+                            <!-- Rows dynamically populated via JavaScript -->
+                            <tr>
+                                <td colspan="5" class="px-6 py-8 text-center text-slate-400">
+                                    <i class="fa-solid fa-spinner fa-spin text-2xl mb-2 text-indigo-500"></i>
+                                    <p class="text-xs">Loading accounts from Firebase...</p>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 py-4 mt-auto">
+        <div class="max-w-7xl mx-auto px-4 text-center text-xs text-slate-400">
+            Powered by Firebase Auth & Firestore • 100% Free Cloud Architecture
+        </div>
+    </footer>
+
+    <!-- Firebase SDK Modules -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            signInAnonymously, 
+            signInWithCustomToken, 
+            onAuthStateChanged,
+            createUserWithEmailAndPassword,
+            signInWithEmailAndPassword,
+            signOut
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, 
+            collection, 
+            doc, 
+            setDoc, 
+            onSnapshot, 
+            deleteDoc 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global Apps Initializer Guard
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'demo-auth-app';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' 
+            ? JSON.parse(__firebase_config) 
+            : {
+                apiKey: "AIzaSyDemoConfigKeyForTestingOnly",
+                authDomain: "demo-app.firebaseapp.com",
+                projectId: "demo-app-project",
+                storageBucket: "demo-app.appspot.com",
+                messagingSenderId: "123456789",
+                appId: "1:123456789:web:abcdef"
+            };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // System State
+        let currentUser = null;
+        let allAccountsCache = [];
+
+        // Correct Firestore Path (Rule 1 Compliant)
+        const accountsCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'users');
+
+        // Initial Auth Setup (Rule 3 Compliant)
+        async function initAuth() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (err) {
+                console.warn("Falling back to anonymous auth...", err);
+                try {
+                    await signInAnonymously(auth);
+                } catch(e) {
+                    console.error("Auth initialization failed:", e);
+                }
+            }
+        }
+
+        // Listen for Authentication state changes
+        onAuthStateChanged(auth, (user) => {
+            currentUser = user;
+            if (user) {
+                document.getElementById('stat-current-session').textContent = user.email || (user.isAnonymous ? 'Anonymous Admin' : user.uid);
+            }
+        });
+
+        // Listen to Firestore Database Real-time updates
+        function listenToAccounts() {
+            onSnapshot(accountsCollectionRef, (snapshot) => {
+                const accounts = [];
+                snapshot.forEach((doc) => {
+                    accounts.push({ id: doc.id, ...doc.data() });
+                });
+                
+                allAccountsCache = accounts;
+                renderUsersTable(accounts);
+                document.getElementById('badge-user-count').textContent = accounts.length;
+                document.getElementById('stat-total-users').textContent = accounts.length;
+            }, (error) => {
+                console.error("Firestore Listen Error:", error);
+                showToast("Error", "Could not fetch user records", "error");
+            });
+        }
+
+        // Register New User Function
+        window.handleRegister = async function(e) {
+            e.preventDefault();
+            const name = document.getElementById('reg-name').value;
+            const email = document.getElementById('reg-email').value;
+            const role = document.getElementById('reg-role').value || 'Member';
+            const password = document.getElementById('reg-password').value;
+
+            try {
+                // 1. Create Auth Account
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                const user = userCredential.user;
+
+                // 2. Save User Record to Firestore Database
+                const userDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid);
+                await setDoc(userDocRef, {
+                    uid: user.uid,
+                    displayName: name,
+                    email: email,
+                    role: role,
+                    createdAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                });
+
+                showToast("Success!", "Account created successfully.", "success");
+                updateLoggedInUI(name, email, role);
+                document.getElementById('form-register').reset();
+            } catch (err) {
+                showToast("Registration Failed", err.message, "error");
+            }
+        };
+
+        // Login User Function
+        window.handleLogin = async function(e) {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+
+            try {
+                const userCredential = await signInWithEmailAndPassword(auth, email, password);
+                const user = userCredential.user;
+
+                // Find user info from cache or set fallback
+                const profile = allAccountsCache.find(a => a.email === email);
+                const name = profile ? profile.displayName : email.split('@')[0];
+                const role = profile ? profile.role : 'Member';
+
+                showToast("Welcome Back!", `Logged in as ${name}`, "success");
+                updateLoggedInUI(name, email, role);
+                document.getElementById('form-login').reset();
+            } catch (err) {
+                showToast("Sign In Failed", "Invalid email or password", "error");
+            }
+        };
+
+        // Logout Function
+        window.handleLogout = async function() {
+            await signOut(auth);
+            // Re-authenticate anonymously for ongoing database access
+            await signInAnonymously(auth);
+            
+            document.getElementById('auth-forms-container').classList.remove('hidden');
+            document.getElementById('logged-in-container').classList.add('hidden');
+            showToast("Signed Out", "You have been logged out.", "info");
+        };
+
+        // Delete Account Record from Admin Table
+        window.deleteUserRecord = async function(docId) {
+            if (!confirm("Are you sure you want to remove this account record from the database?")) return;
+            
+            try {
+                const userDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', docId);
+                await deleteDoc(userDocRef);
+                showToast("Deleted", "Account record removed.", "info");
+            } catch (err) {
+                showToast("Error", "Could not delete record.", "error");
+            }
+        };
+
+        // Render Users in Admin Table
+        function renderUsersTable(users) {
+            const tbody = document.getElementById('users-table-body');
+            
+            if (users.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="px-6 py-8 text-center text-slate-400 text-sm">
+                            No user accounts registered yet. Use the <strong>User Portal</strong> tab to register an account!
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = users.map(user => `
+                <tr class="hover:bg-slate-50 transition-colors">
+                    <td class="px-6 py-4 flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-sm">
+                            ${(user.displayName || user.email || 'U').charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                            <p class="font-semibold text-slate-900">${escapeHtml(user.displayName || 'N/A')}</p>
+                            <p class="text-xs text-slate-400">ID: ${user.id.substring(0, 8)}...</p>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 text-slate-600 font-medium">${escapeHtml(user.email || 'N/A')}</td>
+                    <td class="px-6 py-4">
+                        <span class="inline-block bg-slate-100 text-slate-700 text-xs px-2.5 py-1 rounded-md font-medium border border-slate-200">
+                            ${escapeHtml(user.role || 'Member')}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-slate-500 text-xs">${user.createdAt || 'Recent'}</td>
+                    <td class="px-6 py-4 text-right">
+                        <button onclick="deleteUserRecord('${user.id}')" title="Delete record" class="text-red-500 hover:text-red-700 p-2 rounded-lg hover:bg-red-50 transition-colors">
+                            <i class="fa-regular fa-trash-can"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Search Filter for Admin Table
+        window.filterUsers = function() {
+            const query = document.getElementById('user-search').value.toLowerCase();
+            const filtered = allAccountsCache.filter(u => 
+                (u.displayName && u.displayName.toLowerCase().includes(query)) ||
+                (u.email && u.email.toLowerCase().includes(query))
+            );
+            renderUsersTable(filtered);
+        };
+
+        // UI Helpers
+        function updateLoggedInUI(name, email, role) {
+            document.getElementById('user-avatar').textContent = name.charAt(0).toUpperCase();
+            document.getElementById('user-display-name').textContent = name;
+            document.getElementById('user-display-email').textContent = email;
+            document.getElementById('user-display-role').textContent = role;
+            
+            document.getElementById('auth-forms-container').classList.add('hidden');
+            document.getElementById('logged-in-container').classList.remove('hidden');
+        }
+
+        function escapeHtml(str) {
+            return String(str).replace(/[&<>"']/g, function(m) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+            });
+        }
+
+        // Initialize Application
+        initAuth().then(() => {
+            listenToAccounts();
+        });
+    </script>
+
+    <!-- UI Tab Navigation & Toast Scripts -->
+    <script>
+        function switchTab(tab) {
+            const viewAuth = document.getElementById('view-auth');
+            const viewAdmin = document.getElementById('view-admin');
+            const tabAuth = document.getElementById('tab-auth');
+            const tabAdmin = document.getElementById('tab-admin');
+
+            if (tab === 'auth') {
+                viewAuth.classList.remove('hidden');
+                viewAdmin.classList.add('hidden');
+                tabAuth.className = "px-4 py-2 rounded-lg text-indigo-600 bg-white shadow-sm transition-all duration-200 flex items-center gap-2";
+                tabAdmin.className = "px-4 py-2 rounded-lg text-slate-600 hover:text-slate-900 transition-all duration-200 flex items-center gap-2";
+            } else {
+                viewAuth.classList.add('hidden');
+                viewAdmin.classList.remove('hidden');
+                tabAdmin.className = "px-4 py-2 rounded-lg text-indigo-600 bg-white shadow-sm transition-all duration-200 flex items-center gap-2";
+                tabAuth.className = "px-4 py-2 rounded-lg text-slate-600 hover:text-slate-900 transition-all duration-200 flex items-center gap-2";
+            }
+        }
+
+        function toggleAuthMode(mode) {
+            const formLogin = document.getElementById('form-login');
+            const formRegister = document.getElementById('form-register');
+            const btnLogin = document.getElementById('btn-show-login');
+            const btnRegister = document.getElementById('btn-show-register');
+
+            if (mode === 'login') {
+                formLogin.classList.remove('hidden');
+                formRegister.classList.add('hidden');
+                btnLogin.className = "flex-1 text-center font-semibold pb-2 text-indigo-600 border-b-2 border-indigo-600";
+                btnRegister.className = "flex-1 text-center font-semibold pb-2 text-slate-400 hover:text-slate-600 border-b-2 border-transparent";
+            } else {
+                formLogin.classList.add('hidden');
+                formRegister.classList.remove('hidden');
+                btnRegister.className = "flex-1 text-center font-semibold pb-2 text-emerald-600 border-b-2 border-emerald-600";
+                btnLogin.className = "flex-1 text-center font-semibold pb-2 text-slate-400 hover:text-slate-600 border-b-2 border-transparent";
+            }
+        }
+
+        function showToast(title, message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastTitle = document.getElementById('toast-title');
+            const toastMsg = document.getElementById('toast-msg');
+            const toastIcon = document.getElementById('toast-icon');
+
+            toastTitle.textContent = title;
+            toastMsg.textContent = message;
+
+            if (type === 'error') {
+                toastIcon.className = "text-red-500 mt-0.5";
+                toastIcon.innerHTML = '<i class="fa-solid fa-circle-xmark text-lg"></i>';
+            } else if (type === 'info') {
+                toastIcon.className = "text-sky-500 mt-0.5";
+                toastIcon.innerHTML = '<i class="fa-solid fa-circle-info text-lg"></i>';
+            } else {
+                toastIcon.className = "text-emerald-500 mt-0.5";
+                toastIcon.innerHTML = '<i class="fa-solid fa-circle-check text-lg"></i>';
+            }
+
+            toast.classList.remove('hidden');
+            setTimeout(() => { hideToast(); }, 4000);
+        }
+
+        function hideToast() {
+            document.getElementById('toast').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
