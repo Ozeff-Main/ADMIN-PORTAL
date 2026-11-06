@@ -205,13 +205,13 @@
         th { background-color: var(--primary); color: white; font-weight: 600; }
         td { background-color: #ffffff; }
 
-        /* Approval Modal / Form Box Styling */
         .approval-box {
             background: #f8fafc;
             border: 1px solid var(--border);
-            padding: 15px;
+            padding: 20px;
             border-radius: 8px;
             margin-top: 15px;
+            margin-bottom: 20px;
         }
     </style>
 </head>
@@ -263,6 +263,7 @@
                 <p>Position: <span id="user-display-position" style="font-weight: bold; color: var(--admin-bg);"></span></p>
                 <p>Department: <span id="user-display-department" style="font-weight: bold; color: var(--text-light);"></span></p>
                 
+                <!-- Notice only displays for "Registered Rep." -->
                 <div id="pending-notice" class="hidden" style="background-color: #fef3c7; border: 1px solid #f59e0b; padding: 15px; border-radius: 6px; margin-top: 15px; color: #92400e;">
                     <strong>Notice:</strong> Your account is currently pending approval. Please wait for an Admin to assign your position and department.
                 </div>
@@ -290,7 +291,7 @@
                     <div class="form-group">
                         <label>Select Position</label>
                         <select id="edit-user-position">
-                            <option value="Super Account">Super Account</option>
+                            <option id="opt-super-account" value="Super Account">Super Account</option>
                             <option value="Admin-Ops">Admin-Ops</option>
                             <option value="Section Admin">Section Admin</option>
                             <option value="Registered Rep.">Registered Rep.</option>
@@ -801,19 +802,25 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
             const isSuper = user.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase() || user.position === "Super Account";
             const isAdminOps = user.position === "Admin-Ops";
             const isSectionAdmin = user.position === "Section Admin";
+            const isRegisteredRep = user.position === "Registered Rep.";
 
+            // Side Nav Controls
             if (isSuper || isAdminOps) {
                 document.getElementById('nav-tms').classList.remove('hidden');
                 document.getElementById('nav-history').classList.remove('hidden');
-            } else if (isSectionAdmin) {
-                document.getElementById('nav-tms').classList.add('hidden');
-                document.getElementById('nav-history').classList.add('hidden');
             } else {
                 document.getElementById('nav-tms').classList.add('hidden');
                 document.getElementById('nav-history').classList.add('hidden');
-                document.getElementById('pending-notice').classList.remove('hidden');
             }
 
+            // Pending Notice is ONLY for Registered Rep.
+            if (isRegisteredRep) {
+                document.getElementById('pending-notice').classList.remove('hidden');
+            } else {
+                document.getElementById('pending-notice').classList.add('hidden');
+            }
+
+            // Show Admin Panel Button for Super Account & Admin-Ops
             if (isSuper || isAdminOps) {
                 document.getElementById('admin-management-container').classList.remove('hidden');
             } else {
@@ -843,12 +850,12 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
                         <button class="btn btn-danger" style="padding:4px 8px; font-size:11px;" onclick="deleteUserRecord('${uId}')">Delete</button>
                     `;
                 } else {
-                    if (u.position === "Registered Rep.") {
-                        actionHTML = `<button class="btn btn-clear" style="padding:4px 8px; font-size:11px;" onclick="openApprovalForm('${uId}', '${escapeHtml(u.name)}', 'Section Admin', 'Admin-Ops Department')">Approve Account</button>`;
+                    // Admin-Ops can edit/approve any user except modifying Super Accounts
+                    if (u.position === "Super Account") {
+                        actionHTML = `<span style="color:var(--text-light); font-weight:bold;">Protected</span>`;
                     } else {
                         actionHTML = `
-                            <span>Approved</span>
-                            <button class="btn" style="padding:2px 6px; font-size:10px; margin-left:5px;" onclick="openApprovalForm('${uId}', '${escapeHtml(u.name)}', '${u.position}', '${u.department}')">Edit</button>
+                            <button class="btn btn-clear" style="padding:4px 8px; font-size:11px;" onclick="openApprovalForm('${uId}', '${escapeHtml(u.name)}', '${u.position || 'Section Admin'}', '${u.department || 'Admin-Ops Department'}')">Edit / Approve</button>
                         `;
                     }
                 }
@@ -866,9 +873,23 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
         };
 
         window.openApprovalForm = function(userId, name, position, department) {
+            const activeUser = JSON.parse(sessionStorage.getItem('active_user') || '{}');
+            const isSuper = activeUser.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase() || activeUser.position === "Super Account";
+            
+            const superOpt = document.getElementById('opt-super-account');
+            
+            // Only Super Account can assign "Super Account" position
+            if (isSuper) {
+                superOpt.disabled = false;
+                superOpt.style.display = "block";
+            } else {
+                superOpt.disabled = true;
+                superOpt.style.display = "none";
+            }
+
             document.getElementById('edit-user-id').value = userId;
             document.getElementById('edit-user-name').value = name;
-            document.getElementById('edit-user-position').value = position;
+            document.getElementById('edit-user-position').value = (position === "Super Account" && !isSuper) ? "Admin-Ops" : position;
             document.getElementById('edit-user-department').value = department;
             document.getElementById('approval-form-container').classList.remove('hidden');
             window.scrollTo({ top: 0, behavior: 'smooth' });
