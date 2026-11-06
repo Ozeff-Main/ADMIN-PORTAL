@@ -234,6 +234,20 @@
                 <div class="form-group"><label>Full Name</label><input type="text" id="reg-name"></div>
                 <div class="form-group"><label>Email Address</label><input type="email" id="reg-email"></div>
                 <div class="form-group"><label>Password</label><input type="password" id="reg-password"></div>
+                
+                <!-- Department Dropdown Selection -->
+                <div class="form-group">
+                    <label>Department</label>
+                    <select id="reg-department">
+                        <option value="Admin-Ops Department">Admin-Ops Department</option>
+                        <option value="Safety & Security">Safety & Security</option>
+                        <option value="Safety & Security (Clinic)">Safety & Security (Clinic)</option>
+                        <option value="Finance Department">Finance Department</option>
+                        <option value="Engineering Department">Engineering Department</option>
+                        <option value="HR Department">HR Department</option>
+                    </select>
+                </div>
+
                 <button class="btn" style="width:100%; padding:12px;" onclick="registerUser()">Register Account</button>
                 <div id="reg-msg" class="msg" style="text-align:center;"></div>
             </div>
@@ -252,6 +266,7 @@
                 <h3>User Dashboard</h3>
                 <p>Hello, <span id="user-display-name" style="font-weight: bold; color: var(--primary);"></span>!</p>
                 <p>Position: <span id="user-display-position" style="font-weight: bold; color: var(--admin-bg);"></span></p>
+                <p>Department: <span id="user-display-department" style="font-weight: bold; color: var(--text-light);"></span></p>
                 
                 <div id="pending-notice" class="hidden" style="background-color: #fef3c7; border: 1px solid #f59e0b; padding: 15px; border-radius: 6px; margin-top: 15px; color: #92400e;">
                     <strong>Notice:</strong> Your account is currently pending approval. Please wait for an Admin to approve your account.
@@ -267,10 +282,10 @@
             <!-- ADMIN PANEL -->
             <div id="section-admin" class="auth-section hidden">
                 <h3>🔒 Account Management & Approvals Panel</h3>
-                <p>Manage registered accounts, approvals, names, and positions.</p>
+                <p>Manage registered accounts, approvals, names, positions, and departments.</p>
                 <div style="overflow-x: auto; margin-top: 15px;">
                     <table>
-                        <thead><tr><th>Name</th><th>Email</th><th>Position</th><th>Joined</th><th>Actions</th></tr></thead>
+                        <thead><tr><th>Name</th><th>Email</th><th>Position</th><th>Department</th><th>Joined</th><th>Actions</th></tr></thead>
                         <tbody id="admin-user-table"></tbody>
                     </table>
                 </div>
@@ -682,6 +697,7 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
             const name = document.getElementById('reg-name').value.trim();
             const email = document.getElementById('reg-email').value.trim();
             const password = document.getElementById('reg-password').value.trim();
+            const department = document.getElementById('reg-department').value;
             const msgEl = document.getElementById('reg-msg');
 
             if (!name || !email || !password) {
@@ -699,13 +715,15 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
                     return;
                 }
 
-                const assignedPosition = (email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()) ? "Super Admin-Ops" : "Registered Rep.";
+                const isSuper = email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase();
+                const assignedPosition = isSuper ? "Super Account" : "Registered Rep.";
 
                 await addDoc(collection(db, "users"), { 
                     name, 
                     email, 
                     password, 
                     position: assignedPosition, 
+                    department: department,
                     joined: new Date().toLocaleDateString() 
                 });
 
@@ -748,15 +766,16 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
             document.getElementById('section-dashboard').classList.remove('hidden');
             document.getElementById('user-display-name').textContent = user.name;
             document.getElementById('user-display-position').textContent = user.position;
+            document.getElementById('user-display-department').textContent = user.department || "N/A";
 
-            const isSuperAdmin = user.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase() || user.position === "Super Admin-Ops";
+            const isSuper = user.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase() || user.position === "Super Account";
             const isAdminOps = user.position === "Admin-Ops";
-            const isApprovedAdminSection = user.position === "Admin Section";
+            const isSectionAdmin = user.position === "Section Admin";
 
-            if (isSuperAdmin || isAdminOps) {
+            if (isSuper || isAdminOps) {
                 document.getElementById('nav-tms').classList.remove('hidden');
                 document.getElementById('nav-history').classList.remove('hidden');
-            } else if (isApprovedAdminSection) {
+            } else if (isSectionAdmin) {
                 document.getElementById('nav-tms').classList.add('hidden');
                 document.getElementById('nav-history').classList.add('hidden');
             } else {
@@ -765,7 +784,7 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
                 document.getElementById('pending-notice').classList.remove('hidden');
             }
 
-            if (isSuperAdmin || isAdminOps) {
+            if (isSuper || isAdminOps) {
                 document.getElementById('admin-management-container').classList.remove('hidden');
             } else {
                 document.getElementById('admin-management-container').classList.add('hidden');
@@ -779,7 +798,7 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
             const querySnapshot = await getDocs(collection(db, "users"));
             
             const activeUser = JSON.parse(sessionStorage.getItem('active_user') || '{}');
-            const isSuperAdmin = activeUser.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase() || activeUser.position === "Super Admin-Ops";
+            const isSuper = activeUser.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase() || activeUser.position === "Super Account";
 
             tbody.innerHTML = '';
             querySnapshot.forEach(docSnap => {
@@ -787,14 +806,14 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
                 const uId = docSnap.id;
 
                 let actionHTML = '';
-                if (isSuperAdmin) {
+                if (isSuper) {
                     actionHTML = `
-                        <button class="btn" style="padding:4px 8px; font-size:11px;" onclick="editUser('${uId}', '${u.name}', '${u.position}')">Edit</button>
+                        <button class="btn" style="padding:4px 8px; font-size:11px;" onclick="editUser('${uId}', '${u.name}', '${u.position || 'Registered Rep.'}', '${u.department || 'Admin-Ops Department'}')">Edit</button>
                         <button class="btn btn-danger" style="padding:4px 8px; font-size:11px;" onclick="deleteUserRecord('${uId}')">Delete</button>
                     `;
                 } else {
                     if (u.position === "Registered Rep.") {
-                        actionHTML = `<button class="btn btn-clear" style="padding:4px 8px; font-size:11px;" onclick="approveUserToAdminSection('${uId}')">Approve as Admin Section</button>`;
+                        actionHTML = `<button class="btn btn-clear" style="padding:4px 8px; font-size:11px;" onclick="approveUserToSectionAdmin('${uId}')">Approve as Section Admin</button>`;
                     } else {
                         actionHTML = `<span>Approved</span>`;
                     }
@@ -804,33 +823,44 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
                     <tr>
                         <td>${escapeHtml(u.name)}</td>
                         <td>${escapeHtml(u.email)}</td>
-                        <td><strong style="color:var(--primary);">${escapeHtml(u.position)}</strong></td>
+                        <td><strong style="color:var(--primary);">${escapeHtml(u.position || 'Registered Rep.')}</strong></td>
+                        <td>${escapeHtml(u.department || 'N/A')}</td>
                         <td>${escapeHtml(u.joined)}</td>
                         <td>${actionHTML}</td>
                     </tr>`;
             });
         };
 
-        window.approveUserToAdminSection = async function(userId) {
+        window.approveUserToSectionAdmin = async function(userId) {
             try {
                 const userRef = doc(db, "users", userId);
-                await updateDoc(userRef, { position: "Admin Section" });
-                alert("Account approved as Admin Section!");
+                await updateDoc(userRef, { position: "Section Admin" });
+                alert("Account approved as Section Admin!");
                 openAdminPanel();
             } catch (e) {
                 alert("Error approving user: " + e.message);
             }
         };
 
-        window.editUser = async function(userId, currentName, currentPosition) {
+        window.editUser = async function(userId, currentName, currentPosition, currentDept) {
             const newName = prompt("Edit Full Name:", currentName);
             if (newName === null) return;
-            const newPosition = prompt("Edit Position (Super Admin-Ops, Admin-Ops, Admin Section, Registered Rep.):", currentPosition);
+            
+            const posOptions = "Super Account, Admin-Ops, Section Admin, Registered Rep.";
+            const newPosition = prompt(`Edit Position (${posOptions}):`, currentPosition);
             if (newPosition === null) return;
+
+            const deptOptions = "Admin-Ops Department, Safety & Security, Safety & Security (Clinic), Finance Department, Engineering Department, HR Department";
+            const newDepartment = prompt(`Edit Department (${deptOptions}):`, currentDept);
+            if (newDepartment === null) return;
 
             try {
                 const userRef = doc(db, "users", userId);
-                await updateDoc(userRef, { name: newName.trim(), position: newPosition.trim() });
+                await updateDoc(userRef, { 
+                    name: newName.trim(), 
+                    position: newPosition.trim(),
+                    department: newDepartment.trim() 
+                });
                 alert("User updated successfully!");
                 openAdminPanel();
             } catch (e) {
