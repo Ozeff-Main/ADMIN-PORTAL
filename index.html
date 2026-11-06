@@ -266,9 +266,9 @@
                 <h2 style="margin-top: 10px;">Passport & TMS Record Search</h2>
             </div>
             
-            <!-- Local File Upload Box -->
+            <!-- File Upload Box -->
             <div style="background-color: #f1f5f9; padding: 20px; border-radius: 8px; margin-bottom: 25px; border: 2px dashed var(--border);">
-                <label style="font-weight: bold; margin-bottom: 8px; font-size: 15px;">Upload Excel Files (Stored Locally on this Browser):</label>
+                <label style="font-weight: bold; margin-bottom: 8px; font-size: 15px;">Upload Excel Files (Parsed instantly in memory):</label>
                 <input type="file" id="excel-file-input" accept=".xlsx, .xls" multiple onchange="handleFilesUpload(event)">
                 <div id="file-status-msg" class="msg" style="margin-top: 8px;"></div>
             </div>
@@ -366,7 +366,6 @@
             } else if (viewName === 'tms') {
                 document.getElementById('view-tms').classList.remove('hidden');
                 event.currentTarget.classList.add('active');
-                checkLocalDataset();
             } else if (viewName === 'history') {
                 document.getElementById('view-history').classList.remove('hidden');
                 event.currentTarget.classList.add('active');
@@ -379,7 +378,7 @@
             document.getElementById('section-login').classList.toggle('hidden', tab !== 'login');
         };
 
-        // Handle File Upload to Local Storage
+        // Handle File Upload directly in browser memory (No LocalStorage quotas)
         window.handleFilesUpload = async function(e) {
             const files = Array.from(e.target.files);
             const statusEl = document.getElementById('file-status-msg');
@@ -399,10 +398,9 @@
                     });
                 }
 
-                localStorage.setItem('tms_local_records', JSON.stringify(parsedRows));
                 globalEmployeeRecords = parsedRows;
 
-                statusEl.textContent = `Successfully loaded & cached ${parsedRows.length} records locally!`;
+                statusEl.textContent = `Successfully loaded ${parsedRows.length} records into memory! Ready to search.`;
                 statusEl.className = "msg success";
                 document.getElementById('search-controls').classList.remove('hidden');
             } catch (err) {
@@ -410,20 +408,6 @@
                 statusEl.className = "msg error";
             }
         };
-
-        function checkLocalDataset() {
-            const statusEl = document.getElementById('file-status-msg');
-            const localData = localStorage.getItem('tms_local_records');
-            if (localData) {
-                globalEmployeeRecords = JSON.parse(localData);
-                document.getElementById('search-controls').classList.remove('hidden');
-                statusEl.textContent = `${globalEmployeeRecords.length} records loaded from local browser storage.`;
-                statusEl.className = "msg success";
-            } else {
-                statusEl.textContent = "No local Excel files uploaded yet.";
-                statusEl.className = "msg error";
-            }
-        }
 
         window.clearField = function(id) {
             document.getElementById(id).value = '';
