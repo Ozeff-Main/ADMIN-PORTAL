@@ -421,7 +421,7 @@
     <!-- Firebase & Application Scripts -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, getDocs, query, orderBy, where, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, getDocs, query, where, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyDfR1qBZbTi9HnHJ97T_AM1Mc4yyuPLwUU",
@@ -616,6 +616,25 @@
             if (results.length === 0) {
                 const inputName = nameQuery || "N/A";
                 const inputPassport = passportQuery || "N/A";
+                
+                let formattedBdayOutput = "N/A";
+                let ageStatusOutput = "N/A";
+
+                if (bdayQuery) {
+                    const parsedBday = new Date(bdayQuery);
+                    if (!isNaN(parsedBday.getTime())) {
+                        formattedBdayOutput = formatDate(parsedBday);
+                        const today = new Date();
+                        let age = today.getFullYear() - parsedBday.getFullYear();
+                        const m = today.getMonth() - parsedBday.getMonth();
+                        if (m < 0 || (m === 0 && today.getDate() < parsedBday.getDate())) age--;
+                        ageStatusOutput = (age < 21 ? "Underage" : "Legal Age") + ` (DOB: ${formattedBdayOutput})`;
+                    } else {
+                        formattedBdayOutput = bdayQuery;
+                        ageStatusOutput = `N/A (DOB: ${bdayQuery})`;
+                    }
+                }
+
                 const notFoundText = 
 `PPT NAME: ${inputName}
 PPT NO.: ${inputPassport}
@@ -625,7 +644,7 @@ PREV. SITE: N/A
 LAST STATUS: N/A
 LAST STATUS DATE: N/A
 TMS ID NUMBER: N/A
-AGE STATUS: N/A`;
+AGE STATUS: ${ageStatusOutput}`;
 
                 container.innerHTML = `
                     <div class="record-card" style="border-left-color: var(--error);">
@@ -656,11 +675,10 @@ AGE STATUS: N/A`;
                         let age = today.getFullYear() - birthDate.getFullYear();
                         const m = today.getMonth() - birthDate.getMonth();
                         if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
-                        ageStatus = age < 21 ? "Underage" : "Legal Age";
+                        ageStatus = (age < 21 ? "Underage" : "Legal Age") + ` (DOB: ${formatDate(birthDate)})`;
                     }
                 }
 
-                const formattedBday = formatDate(bdayRaw);
                 const formattedStatusDate = formatDate(statusDateRaw);
 
                 const cardText = 
@@ -672,7 +690,7 @@ PREV. SITE: ${site}
 LAST STATUS: ${status}
 LAST STATUS DATE: ${formattedStatusDate}
 TMS ID NUMBER: ${tmsId}
-AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
+AGE STATUS: ${ageStatus}`;
 
                 const card = document.createElement('div');
                 card.className = 'record-card';
@@ -693,12 +711,13 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
                 try {
                     const activeUser = JSON.parse(sessionStorage.getItem('active_user') || '{}');
                     const userName = activeUser.name || activeUser.email || "Anonymous User";
-                    const timestamp = new Date().toLocaleString();
+                    const now = new Date();
+                    const timestampString = now.toLocaleString();
 
                     await addDoc(collection(db, "copy_history"), {
                         user: userName,
-                        timestampString: timestamp,
-                        timestamp: new Date(),
+                        timestampString: timestampString,
+                        timestamp: now.getTime(),
                         content: text
                     });
                 } catch (e) {
@@ -714,9 +733,7 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
             tbody.innerHTML = `<tr><td colspan="3" style="text-align: center;">Loading history logs from cloud...</td></tr>`;
 
             try {
-                // Sort history logs by newest first using Firestore orderBy
-                const q = query(collection(db, "copy_history"), orderBy("timestamp", "desc"));
-                const querySnapshot = await getDocs(q);
+                const querySnapshot = await getDocs(collection(db, "copy_history"));
                 tbody.innerHTML = '';
 
                 if (querySnapshot.empty) {
@@ -724,9 +741,16 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
                     return;
                 }
 
+                // Collect logs and sort client-side by timestamp descending (newest on top)
+                let logs = [];
                 querySnapshot.forEach(doc => {
-                    const log = doc.data();
-                    const displayTime = log.timestampString || log.timestamp || "N/A";
+                    logs.push(doc.data());
+                });
+
+                logs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+                logs.forEach(log => {
+                    const displayTime = log.timestampString || "N/A";
                     tbody.innerHTML += `
                         <tr>
                             <td style="font-weight:bold; color:var(--primary);">${escapeHtml(log.user)}</td>
