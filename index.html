@@ -204,6 +204,15 @@
         th, td { border: 1px solid var(--border); padding: 10px; font-size: 13px; }
         th { background-color: var(--primary); color: white; font-weight: 600; }
         td { background-color: #ffffff; }
+
+        /* Approval Modal / Form Box Styling */
+        .approval-box {
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
     </style>
 </head>
 <body>
@@ -234,20 +243,6 @@
                 <div class="form-group"><label>Full Name</label><input type="text" id="reg-name"></div>
                 <div class="form-group"><label>Email Address</label><input type="email" id="reg-email"></div>
                 <div class="form-group"><label>Password</label><input type="password" id="reg-password"></div>
-                
-                <!-- Department Dropdown Selection -->
-                <div class="form-group">
-                    <label>Department</label>
-                    <select id="reg-department">
-                        <option value="Admin-Ops Department">Admin-Ops Department</option>
-                        <option value="Safety & Security">Safety & Security</option>
-                        <option value="Safety & Security (Clinic)">Safety & Security (Clinic)</option>
-                        <option value="Finance Department">Finance Department</option>
-                        <option value="Engineering Department">Engineering Department</option>
-                        <option value="HR Department">HR Department</option>
-                    </select>
-                </div>
-
                 <button class="btn" style="width:100%; padding:12px;" onclick="registerUser()">Register Account</button>
                 <div id="reg-msg" class="msg" style="text-align:center;"></div>
             </div>
@@ -269,7 +264,7 @@
                 <p>Department: <span id="user-display-department" style="font-weight: bold; color: var(--text-light);"></span></p>
                 
                 <div id="pending-notice" class="hidden" style="background-color: #fef3c7; border: 1px solid #f59e0b; padding: 15px; border-radius: 6px; margin-top: 15px; color: #92400e;">
-                    <strong>Notice:</strong> Your account is currently pending approval. Please wait for an Admin to approve your account.
+                    <strong>Notice:</strong> Your account is currently pending approval. Please wait for an Admin to assign your position and department.
                 </div>
 
                 <div id="admin-management-container" class="hidden" style="margin-top: 20px;">
@@ -282,7 +277,42 @@
             <!-- ADMIN PANEL -->
             <div id="section-admin" class="auth-section hidden">
                 <h3>🔒 Account Management & Approvals Panel</h3>
-                <p>Manage registered accounts, approvals, names, positions, and departments.</p>
+                <p>Manage registered accounts, approvals, positions, and departments.</p>
+                
+                <!-- Dynamic Approval / Edit Form Box -->
+                <div id="approval-form-container" class="approval-box hidden">
+                    <h4 id="approval-form-title" style="margin-top:0; color:var(--primary);">Approve / Edit User Account</h4>
+                    <input type="hidden" id="edit-user-id">
+                    <div class="form-group">
+                        <label>Full Name</label>
+                        <input type="text" id="edit-user-name">
+                    </div>
+                    <div class="form-group">
+                        <label>Select Position</label>
+                        <select id="edit-user-position">
+                            <option value="Super Account">Super Account</option>
+                            <option value="Admin-Ops">Admin-Ops</option>
+                            <option value="Section Admin">Section Admin</option>
+                            <option value="Registered Rep.">Registered Rep.</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Select Department</label>
+                        <select id="edit-user-department">
+                            <option value="Admin-Ops Department">Admin-Ops Department</option>
+                            <option value="Safety & Security">Safety & Security</option>
+                            <option value="Safety & Security (Clinic)">Safety & Security (Clinic)</option>
+                            <option value="Finance Department">Finance Department</option>
+                            <option value="Engineering Department">Engineering Department</option>
+                            <option value="HR Department">HR Department</option>
+                        </select>
+                    </div>
+                    <div style="display:flex; gap:10px;">
+                        <button class="btn btn-clear" onclick="saveUserApproval()">Save & Approve</button>
+                        <button class="btn btn-danger" onclick="cancelApprovalForm()">Cancel</button>
+                    </div>
+                </div>
+
                 <div style="overflow-x: auto; margin-top: 15px;">
                     <table>
                         <thead><tr><th>Name</th><th>Email</th><th>Position</th><th>Department</th><th>Joined</th><th>Actions</th></tr></thead>
@@ -697,7 +727,6 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
             const name = document.getElementById('reg-name').value.trim();
             const email = document.getElementById('reg-email').value.trim();
             const password = document.getElementById('reg-password').value.trim();
-            const department = document.getElementById('reg-department').value;
             const msgEl = document.getElementById('reg-msg');
 
             if (!name || !email || !password) {
@@ -717,13 +746,14 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
 
                 const isSuper = email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase();
                 const assignedPosition = isSuper ? "Super Account" : "Registered Rep.";
+                const assignedDept = isSuper ? "Admin-Ops Department" : "Unassigned";
 
                 await addDoc(collection(db, "users"), { 
                     name, 
                     email, 
                     password, 
                     position: assignedPosition, 
-                    department: department,
+                    department: assignedDept,
                     joined: new Date().toLocaleDateString() 
                 });
 
@@ -766,7 +796,7 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
             document.getElementById('section-dashboard').classList.remove('hidden');
             document.getElementById('user-display-name').textContent = user.name;
             document.getElementById('user-display-position').textContent = user.position;
-            document.getElementById('user-display-department').textContent = user.department || "N/A";
+            document.getElementById('user-display-department').textContent = user.department || "Unassigned";
 
             const isSuper = user.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase() || user.position === "Super Account";
             const isAdminOps = user.position === "Admin-Ops";
@@ -794,6 +824,7 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
         window.openAdminPanel = async function() {
             document.querySelectorAll('.auth-section').forEach(el => el.classList.add('hidden'));
             document.getElementById('section-admin').classList.remove('hidden');
+            document.getElementById('approval-form-container').classList.add('hidden');
             const tbody = document.getElementById('admin-user-table');
             const querySnapshot = await getDocs(collection(db, "users"));
             
@@ -808,14 +839,17 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
                 let actionHTML = '';
                 if (isSuper) {
                     actionHTML = `
-                        <button class="btn" style="padding:4px 8px; font-size:11px;" onclick="editUser('${uId}', '${u.name}', '${u.position || 'Registered Rep.'}', '${u.department || 'Admin-Ops Department'}')">Edit</button>
+                        <button class="btn" style="padding:4px 8px; font-size:11px;" onclick="openApprovalForm('${uId}', '${escapeHtml(u.name)}', '${u.position || 'Registered Rep.'}', '${u.department || 'Admin-Ops Department'}')">Edit / Approve</button>
                         <button class="btn btn-danger" style="padding:4px 8px; font-size:11px;" onclick="deleteUserRecord('${uId}')">Delete</button>
                     `;
                 } else {
                     if (u.position === "Registered Rep.") {
-                        actionHTML = `<button class="btn btn-clear" style="padding:4px 8px; font-size:11px;" onclick="approveUserToSectionAdmin('${uId}')">Approve as Section Admin</button>`;
+                        actionHTML = `<button class="btn btn-clear" style="padding:4px 8px; font-size:11px;" onclick="openApprovalForm('${uId}', '${escapeHtml(u.name)}', 'Section Admin', 'Admin-Ops Department')">Approve Account</button>`;
                     } else {
-                        actionHTML = `<span>Approved</span>`;
+                        actionHTML = `
+                            <span>Approved</span>
+                            <button class="btn" style="padding:2px 6px; font-size:10px; margin-left:5px;" onclick="openApprovalForm('${uId}', '${escapeHtml(u.name)}', '${u.position}', '${u.department}')">Edit</button>
+                        `;
                     }
                 }
 
@@ -824,44 +858,46 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
                         <td>${escapeHtml(u.name)}</td>
                         <td>${escapeHtml(u.email)}</td>
                         <td><strong style="color:var(--primary);">${escapeHtml(u.position || 'Registered Rep.')}</strong></td>
-                        <td>${escapeHtml(u.department || 'N/A')}</td>
+                        <td>${escapeHtml(u.department || 'Unassigned')}</td>
                         <td>${escapeHtml(u.joined)}</td>
                         <td>${actionHTML}</td>
                     </tr>`;
             });
         };
 
-        window.approveUserToSectionAdmin = async function(userId) {
-            try {
-                const userRef = doc(db, "users", userId);
-                await updateDoc(userRef, { position: "Section Admin" });
-                alert("Account approved as Section Admin!");
-                openAdminPanel();
-            } catch (e) {
-                alert("Error approving user: " + e.message);
-            }
+        window.openApprovalForm = function(userId, name, position, department) {
+            document.getElementById('edit-user-id').value = userId;
+            document.getElementById('edit-user-name').value = name;
+            document.getElementById('edit-user-position').value = position;
+            document.getElementById('edit-user-department').value = department;
+            document.getElementById('approval-form-container').classList.remove('hidden');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         };
 
-        window.editUser = async function(userId, currentName, currentPosition, currentDept) {
-            const newName = prompt("Edit Full Name:", currentName);
-            if (newName === null) return;
-            
-            const posOptions = "Super Account, Admin-Ops, Section Admin, Registered Rep.";
-            const newPosition = prompt(`Edit Position (${posOptions}):`, currentPosition);
-            if (newPosition === null) return;
+        window.cancelApprovalForm = function() {
+            document.getElementById('approval-form-container').classList.add('hidden');
+        };
 
-            const deptOptions = "Admin-Ops Department, Safety & Security, Safety & Security (Clinic), Finance Department, Engineering Department, HR Department";
-            const newDepartment = prompt(`Edit Department (${deptOptions}):`, currentDept);
-            if (newDepartment === null) return;
+        window.saveUserApproval = async function() {
+            const userId = document.getElementById('edit-user-id').value;
+            const newName = document.getElementById('edit-user-name').value.trim();
+            const newPosition = document.getElementById('edit-user-position').value;
+            const newDepartment = document.getElementById('edit-user-department').value;
+
+            if (!newName) {
+                alert("Name cannot be empty.");
+                return;
+            }
 
             try {
                 const userRef = doc(db, "users", userId);
                 await updateDoc(userRef, { 
-                    name: newName.trim(), 
-                    position: newPosition.trim(),
-                    department: newDepartment.trim() 
+                    name: newName, 
+                    position: newPosition, 
+                    department: newDepartment 
                 });
-                alert("User updated successfully!");
+                alert("User account updated and approved successfully!");
+                document.getElementById('approval-form-container').classList.add('hidden');
                 openAdminPanel();
             } catch (e) {
                 alert("Error updating user: " + e.message);
