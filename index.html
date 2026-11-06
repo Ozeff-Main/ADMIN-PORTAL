@@ -213,6 +213,15 @@
             margin-top: 15px;
             margin-bottom: 20px;
         }
+
+        .status-badge {
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        .status-approved { background-color: #d1fae5; color: #065f46; }
+        .status-pending { background-color: #fef3c7; color: #92400e; }
     </style>
 </head>
 <body>
@@ -260,12 +269,13 @@
             <div id="section-dashboard" class="auth-section hidden">
                 <h3>User Dashboard</h3>
                 <p>Hello, <span id="user-display-name" style="font-weight: bold; color: var(--primary);"></span>!</p>
+                <p>Account Status: <span id="user-display-status" style="font-weight: bold;"></span></p>
                 <p>Position: <span id="user-display-position" style="font-weight: bold; color: var(--admin-bg);"></span></p>
                 <p>Department: <span id="user-display-department" style="font-weight: bold; color: var(--text-light);"></span></p>
                 
-                <!-- Notice only displays for "Registered Rep." -->
+                <!-- Notice displays for Pending / Unassigned users -->
                 <div id="pending-notice" class="hidden" style="background-color: #fef3c7; border: 1px solid #f59e0b; padding: 15px; border-radius: 6px; margin-top: 15px; color: #92400e;">
-                    <strong>Notice:</strong> Your account is currently pending approval. Please wait for an Admin to assign your position and department.
+                    <strong>Notice:</strong> Your account is currently pending approval. Please wait for an Admin to approve your account and assign your position and department.
                 </div>
 
                 <div id="admin-management-container" class="hidden" style="margin-top: 20px;">
@@ -278,7 +288,7 @@
             <!-- ADMIN PANEL -->
             <div id="section-admin" class="auth-section hidden">
                 <h3>🔒 Account Management & Approvals Panel</h3>
-                <p>Manage registered accounts, approvals, positions, and departments.</p>
+                <p>Manage registered accounts, approval status, positions, and departments.</p>
                 
                 <!-- Dynamic Approval / Edit Form Box -->
                 <div id="approval-form-container" class="approval-box hidden">
@@ -289,12 +299,19 @@
                         <input type="text" id="edit-user-name">
                     </div>
                     <div class="form-group">
+                        <label>Account Status</label>
+                        <select id="edit-user-status">
+                            <option value="Approved">Approved</option>
+                            <option value="Pending">Pending</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
                         <label>Select Position</label>
                         <select id="edit-user-position">
                             <option id="opt-super-account" value="Super Account">Super Account</option>
                             <option value="Admin-Ops">Admin-Ops</option>
                             <option value="Section Admin">Section Admin</option>
-                            <option value="Registered Rep.">Registered Rep.</option>
+                            <option value="Unassigned">Unassigned</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -306,17 +323,18 @@
                             <option value="Finance Department">Finance Department</option>
                             <option value="Engineering Department">Engineering Department</option>
                             <option value="HR Department">HR Department</option>
+                            <option value="Unassigned">Unassigned</option>
                         </select>
                     </div>
                     <div style="display:flex; gap:10px;">
-                        <button class="btn btn-clear" onclick="saveUserApproval()">Save & Approve</button>
+                        <button class="btn btn-clear" onclick="saveUserApproval()">Save & Apply Changes</button>
                         <button class="btn btn-danger" onclick="cancelApprovalForm()">Cancel</button>
                     </div>
                 </div>
 
                 <div style="overflow-x: auto; margin-top: 15px;">
                     <table>
-                        <thead><tr><th>Name</th><th>Email</th><th>Position</th><th>Department</th><th>Joined</th><th>Actions</th></tr></thead>
+                        <thead><tr><th>Name</th><th>Email</th><th>Status</th><th>Position</th><th>Department</th><th>Joined</th><th>Actions</th></tr></thead>
                         <tbody id="admin-user-table"></tbody>
                     </table>
                 </div>
@@ -746,13 +764,15 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
                 }
 
                 const isSuper = email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase();
-                const assignedPosition = isSuper ? "Super Account" : "Registered Rep.";
+                const assignedStatus = isSuper ? "Approved" : "Pending";
+                const assignedPosition = isSuper ? "Super Account" : "Unassigned";
                 const assignedDept = isSuper ? "Admin-Ops Department" : "Unassigned";
 
                 await addDoc(collection(db, "users"), { 
                     name, 
                     email, 
                     password, 
+                    status: assignedStatus,
                     position: assignedPosition, 
                     department: assignedDept,
                     joined: new Date().toLocaleDateString() 
@@ -795,26 +815,36 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
             document.querySelectorAll('.auth-section').forEach(el => el.classList.add('hidden'));
             document.getElementById('public-nav').classList.add('hidden');
             document.getElementById('section-dashboard').classList.remove('hidden');
+            
             document.getElementById('user-display-name').textContent = user.name;
-            document.getElementById('user-display-position').textContent = user.position;
-            document.getElementById('user-display-department').textContent = user.department || "Unassigned";
+            
+            const userStatus = user.status || "Pending";
+            const userPos = user.position || "Unassigned";
+            const userDept = user.department || "Unassigned";
 
-            const isSuper = user.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase() || user.position === "Super Account";
-            const isAdminOps = user.position === "Admin-Ops";
-            const isSectionAdmin = user.position === "Section Admin";
-            const isRegisteredRep = user.position === "Registered Rep.";
+            const statusEl = document.getElementById('user-display-status');
+            statusEl.textContent = userStatus;
+            statusEl.className = userStatus === "Approved" ? "status-badge status-approved" : "status-badge status-pending";
 
-            // Side Nav Controls
+            document.getElementById('user-display-position').textContent = userPos;
+            document.getElementById('user-display-department').textContent = userDept;
+
+            const isSuper = user.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase() || userPos === "Super Account";
+            const isAdminOps = userPos === "Admin-Ops";
+            const isApprovedUser = userStatus === "Approved" && userPos !== "Unassigned";
+
+            // Side Nav Accessibility
             if (isSuper || isAdminOps) {
                 document.getElementById('nav-tms').classList.remove('hidden');
                 document.getElementById('nav-history').classList.remove('hidden');
             } else {
+                // Pending users or Unassigned users can only access Account Portal
                 document.getElementById('nav-tms').classList.add('hidden');
                 document.getElementById('nav-history').classList.add('hidden');
             }
 
-            // Pending Notice is ONLY for Registered Rep.
-            if (isRegisteredRep) {
+            // Show Pending Notice if Status is Pending or Position is Unassigned
+            if (!isApprovedUser && !isSuper && !isAdminOps) {
                 document.getElementById('pending-notice').classList.remove('hidden');
             } else {
                 document.getElementById('pending-notice').classList.add('hidden');
@@ -842,20 +872,22 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
             querySnapshot.forEach(docSnap => {
                 const u = docSnap.data();
                 const uId = docSnap.id;
+                const statusBadge = (u.status === "Approved") 
+                    ? `<span class="status-badge status-approved">Approved</span>`
+                    : `<span class="status-badge status-pending">Pending</span>`;
 
                 let actionHTML = '';
                 if (isSuper) {
                     actionHTML = `
-                        <button class="btn" style="padding:4px 8px; font-size:11px;" onclick="openApprovalForm('${uId}', '${escapeHtml(u.name)}', '${u.position || 'Registered Rep.'}', '${u.department || 'Admin-Ops Department'}')">Edit / Approve</button>
+                        <button class="btn" style="padding:4px 8px; font-size:11px;" onclick="openApprovalForm('${uId}', '${escapeHtml(u.name)}', '${u.status || 'Pending'}', '${u.position || 'Unassigned'}', '${u.department || 'Unassigned'}')">Edit / Approve</button>
                         <button class="btn btn-danger" style="padding:4px 8px; font-size:11px;" onclick="deleteUserRecord('${uId}')">Delete</button>
                     `;
                 } else {
-                    // Admin-Ops can edit/approve any user except modifying Super Accounts
                     if (u.position === "Super Account") {
                         actionHTML = `<span style="color:var(--text-light); font-weight:bold;">Protected</span>`;
                     } else {
                         actionHTML = `
-                            <button class="btn btn-clear" style="padding:4px 8px; font-size:11px;" onclick="openApprovalForm('${uId}', '${escapeHtml(u.name)}', '${u.position || 'Section Admin'}', '${u.department || 'Admin-Ops Department'}')">Edit / Approve</button>
+                            <button class="btn btn-clear" style="padding:4px 8px; font-size:11px;" onclick="openApprovalForm('${uId}', '${escapeHtml(u.name)}', '${u.status || 'Pending'}', '${u.position || 'Unassigned'}', '${u.department || 'Unassigned'}')">Edit / Approve</button>
                         `;
                     }
                 }
@@ -864,7 +896,8 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
                     <tr>
                         <td>${escapeHtml(u.name)}</td>
                         <td>${escapeHtml(u.email)}</td>
-                        <td><strong style="color:var(--primary);">${escapeHtml(u.position || 'Registered Rep.')}</strong></td>
+                        <td>${statusBadge}</td>
+                        <td><strong style="color:var(--primary);">${escapeHtml(u.position || 'Unassigned')}</strong></td>
                         <td>${escapeHtml(u.department || 'Unassigned')}</td>
                         <td>${escapeHtml(u.joined)}</td>
                         <td>${actionHTML}</td>
@@ -872,13 +905,12 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
             });
         };
 
-        window.openApprovalForm = function(userId, name, position, department) {
+        window.openApprovalForm = function(userId, name, status, position, department) {
             const activeUser = JSON.parse(sessionStorage.getItem('active_user') || '{}');
             const isSuper = activeUser.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase() || activeUser.position === "Super Account";
             
             const superOpt = document.getElementById('opt-super-account');
             
-            // Only Super Account can assign "Super Account" position
             if (isSuper) {
                 superOpt.disabled = false;
                 superOpt.style.display = "block";
@@ -889,6 +921,7 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
 
             document.getElementById('edit-user-id').value = userId;
             document.getElementById('edit-user-name').value = name;
+            document.getElementById('edit-user-status').value = status;
             document.getElementById('edit-user-position').value = (position === "Super Account" && !isSuper) ? "Admin-Ops" : position;
             document.getElementById('edit-user-department').value = department;
             document.getElementById('approval-form-container').classList.remove('hidden');
@@ -902,6 +935,7 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
         window.saveUserApproval = async function() {
             const userId = document.getElementById('edit-user-id').value;
             const newName = document.getElementById('edit-user-name').value.trim();
+            const newStatus = document.getElementById('edit-user-status').value;
             const newPosition = document.getElementById('edit-user-position').value;
             const newDepartment = document.getElementById('edit-user-department').value;
 
@@ -914,10 +948,11 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
                 const userRef = doc(db, "users", userId);
                 await updateDoc(userRef, { 
                     name: newName, 
+                    status: newStatus,
                     position: newPosition, 
                     department: newDepartment 
                 });
-                alert("User account updated and approved successfully!");
+                alert("User account updated successfully!");
                 document.getElementById('approval-form-container').classList.add('hidden');
                 openAdminPanel();
             } catch (e) {
