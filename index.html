@@ -150,18 +150,6 @@
 
         .hidden { display: none !important; }
 
-        .upload-meta {
-            background: #e2e8f0;
-            padding: 10px 15px;
-            border-radius: 6px;
-            font-size: 13px;
-            margin-bottom: 15px;
-            color: #334155;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
         /* Data Table Styling */
         .table-responsive {
             overflow-x: auto;
@@ -349,7 +337,7 @@
     <!-- Firebase & Application Scripts -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, getDocs, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyDfR1qBZbTi9HnHJ97T_AM1Mc4yyuPLwUU",
