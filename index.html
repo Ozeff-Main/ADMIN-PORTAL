@@ -273,7 +273,6 @@
                 <p>Position: <span id="user-display-position" style="font-weight: bold; color: var(--admin-bg);"></span></p>
                 <p>Department: <span id="user-display-department" style="font-weight: bold; color: var(--text-light);"></span></p>
                 
-                <!-- Notice displays for Pending / Unassigned users -->
                 <div id="pending-notice" class="hidden" style="background-color: #fef3c7; border: 1px solid #f59e0b; padding: 15px; border-radius: 6px; margin-top: 15px; color: #92400e;">
                     <strong>Notice:</strong> Your account is currently pending approval. Please wait for an Admin to approve your account and assign your position and department.
                 </div>
@@ -290,7 +289,6 @@
                 <h3>🔒 Account Management & Approvals Panel</h3>
                 <p>Manage registered accounts, approval status, positions, and departments.</p>
                 
-                <!-- Dynamic Approval / Edit Form Box -->
                 <div id="approval-form-container" class="approval-box hidden">
                     <h4 id="approval-form-title" style="margin-top:0; color:var(--primary);">Approve / Edit User Account</h4>
                     <input type="hidden" id="edit-user-id">
@@ -423,7 +421,7 @@
     <!-- Firebase & Application Scripts -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, getDocs, query, where, doc, updateDoc, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, getDocs, query, orderBy, where, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyDfR1qBZbTi9HnHJ97T_AM1Mc4yyuPLwUU",
@@ -569,8 +567,8 @@
         };
 
         window.executeSearch = function() {
-            const nameQuery = document.getElementById('search-name').value.trim().toLowerCase();
-            const passportQuery = document.getElementById('search-passport').value.trim().toLowerCase();
+            const nameQuery = document.getElementById('search-name').value.trim().toUpperCase();
+            const passportQuery = document.getElementById('search-passport').value.trim().toUpperCase();
             const bdayQuery = document.getElementById('search-bday').value.trim().toLowerCase();
             const container = document.getElementById('tms-results-container');
             container.innerHTML = '';
@@ -595,8 +593,8 @@
             };
 
             const results = globalEmployeeRecords.filter(row => {
-                const name = String(getValue(row, ["English Name", "PPT NAME", "Name", "Full Name"])).toLowerCase();
-                const ppt = String(getValue(row, ["Passport", "Passport No", "PPT NO", "PPT NO."])).toLowerCase();
+                const name = String(getValue(row, ["English Name", "PPT NAME", "Name", "Full Name"])).toUpperCase();
+                const ppt = String(getValue(row, ["Passport", "Passport No", "PPT NO", "PPT NO."])).toUpperCase();
                 
                 const bdayRaw = getValue(row, ["Birthday", "Birthdate", "Birth Date"]);
                 const formattedRowBday = formatDate(bdayRaw).toLowerCase();
@@ -616,9 +614,11 @@
             });
 
             if (results.length === 0) {
+                const inputName = nameQuery || "N/A";
+                const inputPassport = passportQuery || "N/A";
                 const notFoundText = 
-`PPT NAME: N/A
-PPT NO.: N/A
+`PPT NAME: ${inputName}
+PPT NO.: ${inputPassport}
 W/ RECORD ON TMS: NO
 PREV. OFFICE: N/A
 PREV. SITE: N/A
@@ -630,7 +630,8 @@ AGE STATUS: N/A`;
                 container.innerHTML = `
                     <div class="record-card" style="border-left-color: var(--error);">
                         <div class="card-header">
-                            <span>Search Result</span>
+                            <span>Search Result: No Record Found</span>
+                            <button class="badge-copy" onclick="recordCopyAction(\`${escapeQuote(notFoundText)}\`)">📋 Copy Not Found Result</button>
                         </div>
                         <div>${notFoundText}</div>
                     </div>`;
@@ -696,7 +697,8 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
 
                     await addDoc(collection(db, "copy_history"), {
                         user: userName,
-                        timestamp: timestamp,
+                        timestampString: timestamp,
+                        timestamp: new Date(),
                         content: text
                     });
                 } catch (e) {
@@ -712,7 +714,9 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
             tbody.innerHTML = `<tr><td colspan="3" style="text-align: center;">Loading history logs from cloud...</td></tr>`;
 
             try {
-                const querySnapshot = await getDocs(collection(db, "copy_history"));
+                // Sort history logs by newest first using Firestore orderBy
+                const q = query(collection(db, "copy_history"), orderBy("timestamp", "desc"));
+                const querySnapshot = await getDocs(q);
                 tbody.innerHTML = '';
 
                 if (querySnapshot.empty) {
@@ -722,10 +726,11 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
 
                 querySnapshot.forEach(doc => {
                     const log = doc.data();
+                    const displayTime = log.timestampString || log.timestamp || "N/A";
                     tbody.innerHTML += `
                         <tr>
                             <td style="font-weight:bold; color:var(--primary);">${escapeHtml(log.user)}</td>
-                            <td>${escapeHtml(log.timestamp)}</td>
+                            <td>${escapeHtml(displayTime)}</td>
                             <td style="font-family:monospace; white-space:pre-wrap; text-align:left; font-size:12px;">${escapeHtml(log.content)}</td>
                         </tr>`;
                 });
@@ -833,24 +838,20 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
             const isAdminOps = userPos === "Admin-Ops";
             const isApprovedUser = userStatus === "Approved" && userPos !== "Unassigned";
 
-            // Side Nav Accessibility
             if (isSuper || isAdminOps) {
                 document.getElementById('nav-tms').classList.remove('hidden');
                 document.getElementById('nav-history').classList.remove('hidden');
             } else {
-                // Pending users or Unassigned users can only access Account Portal
                 document.getElementById('nav-tms').classList.add('hidden');
                 document.getElementById('nav-history').classList.add('hidden');
             }
 
-            // Show Pending Notice if Status is Pending or Position is Unassigned
             if (!isApprovedUser && !isSuper && !isAdminOps) {
                 document.getElementById('pending-notice').classList.remove('hidden');
             } else {
                 document.getElementById('pending-notice').classList.add('hidden');
             }
 
-            // Show Admin Panel Button for Super Account & Admin-Ops
             if (isSuper || isAdminOps) {
                 document.getElementById('admin-management-container').classList.remove('hidden');
             } else {
