@@ -312,9 +312,17 @@
                             <option value="Safety & Security (Clinic)">Safety & Security (Clinic)</option>
                             <option value="Engineering Department">Engineering Department</option>
                             <option value="HR Department">HR Department</option>
+                            <option value="Section">Section</option>
                             <option value="Unassigned">Unassigned</option>
                         </select>
                     </div>
+
+                    <!-- Dynamic Free Text Input for Section (Large Caps Only) -->
+                    <div id="section-input-group" class="form-group hidden">
+                        <label>Enter Section Name (e.g. 11A, 11B)</label>
+                        <input type="text" id="edit-section-text" placeholder="e.g. 11A" oninput="this.value = this.value.toUpperCase()">
+                    </div>
+
                     <div class="form-group">
                         <label>Select Position</label>
                         <select id="edit-user-position">
@@ -441,6 +449,7 @@
             "Safety & Security (Clinic)": ["Safety & Security Officer", "Safety & Security Supervisor", "OSH Nurse"],
             "Engineering Department": ["Engineering Clerk", "Technician", "Engineering Supervisor", "Engineering Manager"],
             "HR Department": ["HR Staff", "HR Officer", "HR Generalist", "HR Assistant", "HR Manager"],
+            "Section": ["Section Admin", "Section Manager", "Section Boss"],
             "Unassigned": ["Unassigned", "Registered Rep."]
         };
 
@@ -911,7 +920,7 @@ AGE STATUS: ${ageStatus}`;
                 let actionHTML = '';
                 if (isSuper) {
                     actionHTML = `
-                        <button class="btn" style="padding:4px 8px; font-size:11px;" onclick="openApprovalForm('${uId}', '${escapeHtml(u.name)}', '${u.status || 'Pending'}', '${u.position || 'Unassigned'}', '${u.department || 'Unassigned'}')">Edit / Approve</button>
+                        <button class="btn" style="padding:4px 8px; font-size:11px;" onclick="openApprovalForm('${uId}', '${escapeHtml(u.name)}', '${u.status || 'Pending'}', '${u.position || 'Unassigned'}', '${escapeHtml(u.department || 'Unassigned')}')">Edit / Approve</button>
                         <button class="btn btn-danger" style="padding:4px 8px; font-size:11px;" onclick="deleteUserRecord('${uId}')">Delete</button>
                     `;
                 } else {
@@ -919,7 +928,7 @@ AGE STATUS: ${ageStatus}`;
                         actionHTML = `<span style="color:var(--text-light); font-weight:bold;">Protected</span>`;
                     } else {
                         actionHTML = `
-                            <button class="btn btn-clear" style="padding:4px 8px; font-size:11px;" onclick="openApprovalForm('${uId}', '${escapeHtml(u.name)}', '${u.status || 'Pending'}', '${u.position || 'Unassigned'}', '${u.department || 'Unassigned'}')">Edit / Approve</button>
+                            <button class="btn btn-clear" style="padding:4px 8px; font-size:11px;" onclick="openApprovalForm('${uId}', '${escapeHtml(u.name)}', '${u.status || 'Pending'}', '${u.position || 'Unassigned'}', '${escapeHtml(u.department || 'Unassigned')}')">Edit / Approve</button>
                         `;
                     }
                 }
@@ -946,7 +955,7 @@ AGE STATUS: ${ageStatus}`;
             const isSuper = activeUser.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase() || activeUser.position === "Super Account";
 
             positions.forEach(pos => {
-                if (pos === "Super Account" && !isSuper) return; // Hide Super Account for non-super admins
+                if (pos === "Super Account" && !isSuper) return;
                 const opt = document.createElement('option');
                 opt.value = pos;
                 opt.textContent = pos;
@@ -967,16 +976,43 @@ AGE STATUS: ${ageStatus}`;
 
         window.onDepartmentChange = function() {
             const dept = document.getElementById('edit-user-department').value;
+            const sectionInputGroup = document.getElementById('section-input-group');
+            
+            if (dept === "Section") {
+                sectionInputGroup.classList.remove('hidden');
+            } else {
+                sectionInputGroup.classList.add('hidden');
+                document.getElementById('edit-section-text').value = "";
+            }
+
             window.updatePositionDropdown(dept);
         };
 
-        window.openApprovalForm = function(userId, name, status, position, department) {
+        window.openApprovalForm = function(userId, name, status, position, fullDepartment) {
             document.getElementById('edit-user-id').value = userId;
             document.getElementById('edit-user-name').value = name;
             document.getElementById('edit-user-status').value = status;
-            document.getElementById('edit-user-department').value = department;
             
-            window.updatePositionDropdown(department, position);
+            let baseDept = fullDepartment;
+            let sectionValue = "";
+
+            if (fullDepartment && fullDepartment.startsWith("Section - ")) {
+                baseDept = "Section";
+                sectionValue = fullDepartment.replace("Section - ", "");
+            }
+
+            document.getElementById('edit-user-department').value = baseDept;
+            
+            const sectionInputGroup = document.getElementById('section-input-group');
+            if (baseDept === "Section") {
+                sectionInputGroup.classList.remove('hidden');
+                document.getElementById('edit-section-text').value = sectionValue;
+            } else {
+                sectionInputGroup.classList.add('hidden');
+                document.getElementById('edit-section-text').value = "";
+            }
+
+            window.updatePositionDropdown(baseDept, position);
 
             document.getElementById('approval-form-container').classList.remove('hidden');
             window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -991,11 +1027,21 @@ AGE STATUS: ${ageStatus}`;
             const newName = document.getElementById('edit-user-name').value.trim();
             const newStatus = document.getElementById('edit-user-status').value;
             const newPosition = document.getElementById('edit-user-position').value;
-            const newDepartment = document.getElementById('edit-user-department').value;
+            const baseDept = document.getElementById('edit-user-department').value;
+            const sectionText = document.getElementById('edit-section-text').value.trim().toUpperCase();
 
             if (!newName) {
                 alert("Name cannot be empty.");
                 return;
+            }
+
+            let finalDepartment = baseDept;
+            if (baseDept === "Section") {
+                if (!sectionText) {
+                    alert("Please enter a section name (e.g. 11A).");
+                    return;
+                }
+                finalDepartment = `Section - ${sectionText}`;
             }
 
             try {
@@ -1004,7 +1050,7 @@ AGE STATUS: ${ageStatus}`;
                     name: newName, 
                     status: newStatus,
                     position: newPosition, 
-                    department: newDepartment 
+                    department: finalDepartment 
                 });
                 alert("User account updated successfully!");
                 document.getElementById('approval-form-container').classList.add('hidden');
