@@ -224,8 +224,8 @@
             <h2>🌐 Secure Cloud Portal</h2>
 
             <div class="nav-tabs" id="public-nav" style="display: flex; gap: 10px; margin-bottom: 20px;">
-                <button class="btn" style="flex:1" onclick="switchAuthTab('register')">Register</button>
-                <button class="btn" style="flex:1; background-color: var(--text-light)" onclick="switchAuthTab('login')">Login</button>
+                <button id="tab-btn-register" class="btn" style="flex:1" onclick="switchAuthTab('register')">Register</button>
+                <button id="tab-btn-login" class="btn" style="flex:1; background-color: var(--text-light)" onclick="switchAuthTab('login')">Login</button>
             </div>
 
             <!-- REGISTER -->
@@ -359,7 +359,7 @@
     <!-- Firebase & Application Scripts -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, getDocs, query, where, doc, updatedoc, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, getDocs, query, where, doc, updateDoc, deleteDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyDfR1qBZbTi9HnHJ97T_AM1Mc4yyuPLwUU",
@@ -397,8 +397,22 @@
         };
 
         window.switchAuthTab = function(tab) {
-            document.getElementById('section-register').classList.toggle('hidden', tab !== 'register');
-            document.getElementById('section-login').classList.toggle('hidden', tab !== 'login');
+            const regSection = document.getElementById('section-register');
+            const loginSection = document.getElementById('section-login');
+            const regBtn = document.getElementById('tab-btn-register');
+            const loginBtn = document.getElementById('tab-btn-login');
+
+            if (tab === 'register') {
+                regSection.classList.remove('hidden');
+                loginSection.classList.add('hidden');
+                regBtn.style.backgroundColor = 'var(--primary)';
+                loginBtn.style.backgroundColor = 'var(--text-light)';
+            } else {
+                regSection.classList.add('hidden');
+                loginSection.classList.remove('hidden');
+                loginBtn.style.backgroundColor = 'var(--primary)';
+                regBtn.style.backgroundColor = 'var(--text-light)';
+            }
         };
 
         function formatDate(dateInput) {
@@ -664,7 +678,6 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
             return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
         }
 
-        // Authentication & Registration Handler
         window.registerUser = async function() {
             const name = document.getElementById('reg-name').value.trim();
             const email = document.getElementById('reg-email').value.trim();
@@ -686,16 +699,17 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
                     return;
                 }
 
-                // Default position is "Registered Rep."
+                const assignedPosition = (email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()) ? "Super Admin-Ops" : "Registered Rep.";
+
                 await addDoc(collection(db, "users"), { 
                     name, 
                     email, 
                     password, 
-                    position: "Registered Rep.", 
+                    position: assignedPosition, 
                     joined: new Date().toLocaleDateString() 
                 });
 
-                msgEl.textContent = "Registration successful! Please wait for approval.";
+                msgEl.textContent = "Registration successful! Please log in.";
                 msgEl.className = "msg success";
             } catch (e) {
                 msgEl.textContent = e.message;
@@ -735,11 +749,10 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
             document.getElementById('user-display-name').textContent = user.name;
             document.getElementById('user-display-position').textContent = user.position;
 
-            const isSuperAdmin = user.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase();
+            const isSuperAdmin = user.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase() || user.position === "Super Admin-Ops";
             const isAdminOps = user.position === "Admin-Ops";
             const isApprovedAdminSection = user.position === "Admin Section";
 
-            // Control navigation panels visibility based on position
             if (isSuperAdmin || isAdminOps) {
                 document.getElementById('nav-tms').classList.remove('hidden');
                 document.getElementById('nav-history').classList.remove('hidden');
@@ -747,13 +760,11 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
                 document.getElementById('nav-tms').classList.add('hidden');
                 document.getElementById('nav-history').classList.add('hidden');
             } else {
-                // Default "Registered Rep." waiting for approval
                 document.getElementById('nav-tms').classList.add('hidden');
                 document.getElementById('nav-history').classList.add('hidden');
                 document.getElementById('pending-notice').classList.remove('hidden');
             }
 
-            // Show admin management panel button for Super Admin or Admin-Ops
             if (isSuperAdmin || isAdminOps) {
                 document.getElementById('admin-management-container').classList.remove('hidden');
             } else {
@@ -768,7 +779,7 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
             const querySnapshot = await getDocs(collection(db, "users"));
             
             const activeUser = JSON.parse(sessionStorage.getItem('active_user') || '{}');
-            const isSuperAdmin = activeUser.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase();
+            const isSuperAdmin = activeUser.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase() || activeUser.position === "Super Admin-Ops";
 
             tbody.innerHTML = '';
             querySnapshot.forEach(docSnap => {
@@ -782,7 +793,6 @@ AGE STATUS: ${ageStatus} (DOB: ${formattedBday})`;
                         <button class="btn btn-danger" style="padding:4px 8px; font-size:11px;" onclick="deleteUserRecord('${uId}')">Delete</button>
                     `;
                 } else {
-                    // Admin-Ops can approve registered accounts into "Admin Section"
                     if (u.position === "Registered Rep.") {
                         actionHTML = `<button class="btn btn-clear" style="padding:4px 8px; font-size:11px;" onclick="approveUserToAdminSection('${uId}')">Approve as Admin Section</button>`;
                     } else {
