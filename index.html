@@ -398,12 +398,24 @@
             document.getElementById('section-login').classList.toggle('hidden', tab !== 'login');
         };
 
-        // Date formatter to "01-Jan-1999" format
+        // Robust Date formatter for Excel serial numbers, strings, and standard dates to "01-Jan-1999" format
         function formatDate(dateInput) {
-            if (!dateInput) return "N/A";
-            const d = new Date(dateInput);
-            if (isNaN(d)) return String(dateInput);
+            if (dateInput === null || dateInput === undefined || dateInput === "") return "N/A";
             
+            let d = null;
+
+            // Handle Excel serial date numbers (e.g., 45000+)
+            if (typeof dateInput === 'number') {
+                const excelEpoch = new Date(1899, 11, 30);
+                d = new Date(excelEpoch.getTime() + dateInput * 86400000);
+            } else {
+                d = new Date(dateInput);
+            }
+
+            if (!d || isNaN(d.getTime())) {
+                return String(dateInput); // Fallback to raw string if unable to parse
+            }
+
             const day = String(d.getDate()).padStart(2, '0');
             const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
             const month = months[d.getMonth()];
@@ -561,7 +573,7 @@ AGE STATUS: N/A`;
                 const site = getValue(row, ["Site", "PREV. SITE", "Company", "Previous Site"]) || "N/A";
                 const status = getValue(row, ["Status", "LAST STATUS", "Last Status"]) || "N/A";
                 
-                // Using "Status Date" column explicitly as requested
+                // Explicitly checking "Status Date" column as requested
                 const statusDateRaw = getValue(row, ["Status Date", "LAST STATUS DATE"]);
                 const tmsId = getValue(row, ["TMS ID", "TMS ID NUMBER", "ID Number", "ID"]) || "N/A";
 
