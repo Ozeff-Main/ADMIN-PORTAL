@@ -88,7 +88,7 @@
 
         .container {
             width: 100%;
-            max-width: 950px;
+            max-width: 1000px;
             background: var(--card-bg);
             padding: 40px;
             border-radius: 12px;
@@ -215,6 +215,7 @@
         <h3>Portal Menu</h3>
         <button class="side-btn active" onclick="switchMainView('portal')">🔑 Account Portal</button>
         <button class="side-btn" onclick="switchMainView('tms')">📋 TMS Record Search</button>
+        <button class="side-btn" onclick="switchMainView('history')">📜 Copied History Logs</button>
     </div>
 
     <!-- MAIN CONTENT AREA -->
@@ -252,7 +253,7 @@
             <div id="section-dashboard" class="auth-section hidden">
                 <h3>User Dashboard</h3>
                 <p>Hello, <span id="user-display-name" style="font-weight: bold; color: var(--primary);"></span>!</p>
-                <p>You are successfully logged in. Use the side menu to access the Passport & TMS Record Search.</p>
+                <p>You are successfully logged in. Use the side menu to access Search and Shared History Logs.</p>
                 <div id="admin-button-container" class="hidden" style="margin-top: 15px;">
                     <button class="btn btn-admin" style="width:100%; padding:12px;" onclick="openAdminPanel()">🔒 Open Admin Database Panel</button>
                 </div>
@@ -272,21 +273,14 @@
         </div>
 
         <!-- VIEW 2: PASSPORT & TMS RECORD SEARCH (Protected) -->
-        <div id="view-tms" class="container hidden" style="max-width: 1050px;">
+        <div id="view-tms" class="container hidden">
             <div style="text-align: center; margin-bottom: 25px;">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                 <h2 style="margin-top: 10px;">Passport & TMS Record Search</h2>
             </div>
             
-            <!-- Upload Meta Box (Shows who uploaded and when) -->
-            <div id="upload-meta-box" class="upload-meta hidden">
-                <span>📁 Active Cloud Dataset: <strong id="meta-file-count">0</strong> file(s) loaded</span>
-                <span>👤 Uploaded by: <strong id="meta-uploader">-</strong> | ⏰ Time: <strong id="meta-timestamp">-</strong></span>
-            </div>
-
-            <!-- Multi-file Upload Box -->
+            <!-- Local File Upload Box -->
             <div style="background-color: #f1f5f9; padding: 20px; border-radius: 8px; margin-bottom: 25px; border: 2px dashed var(--border);">
-                <label style="font-weight: bold; margin-bottom: 8px; font-size: 15px;">Upload / Replace Employee Excel Files (Saves to Cloud for everyone):</label>
+                <label style="font-weight: bold; margin-bottom: 8px; font-size: 15px;">Upload Excel Files (Stored Locally on this Browser):</label>
                 <input type="file" id="excel-file-input" accept=".xlsx, .xls" multiple onchange="handleFilesUpload(event)">
                 <div id="file-status-msg" class="msg" style="margin-top: 8px;"></div>
             </div>
@@ -312,7 +306,7 @@
                 </div>
 
                 <div class="form-group">
-                    <label>BOD Filter (Birthday Precision Match - e.g. YYYY-MM-DD, MM/DD/YYYY, or Apr-17-1991)</label>
+                    <label>BOD Filter (Birthday Precision Match)</label>
                     <div class="btn-action-group">
                         <input type="text" id="search-bday" placeholder="Enter exact birthday to narrow down results...">
                         <button class="btn btn-clear" onclick="clearField('search-bday')">Clear</button>
@@ -329,12 +323,33 @@
             <div id="tms-results-container"></div>
         </div>
 
+        <!-- VIEW 3: COPIED HISTORY LOGS -->
+        <div id="view-history" class="container hidden">
+            <h2>📜 Shared Copied History Logs</h2>
+            <p style="text-align: center; color: var(--text-light);">Here are all the employee records copied by any user across the system.</p>
+            
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Copied By</th>
+                            <th>Timestamp</th>
+                            <th>Copied Data Content</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-table-body">
+                        <tr><td colspan="3" style="text-align: center;">Loading history logs...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
     </div>
 
     <!-- Firebase & Application Scripts -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, getDocs, query, where, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyDfR1qBZbTi9HnHJ97T_AM1Mc4yyuPLwUU",
@@ -353,15 +368,21 @@
 
         window.switchMainView = function(viewName) {
             document.querySelectorAll('.side-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('view-portal').classList.add('hidden');
+            document.getElementById('view-tms').classList.add('hidden');
+            document.getElementById('view-history').classList.add('hidden');
+
             if (viewName === 'portal') {
                 document.getElementById('view-portal').classList.remove('hidden');
-                document.getElementById('view-tms').classList.add('hidden');
                 event.currentTarget.classList.add('active');
             } else if (viewName === 'tms') {
-                document.getElementById('view-portal').classList.add('hidden');
                 document.getElementById('view-tms').classList.remove('hidden');
                 event.currentTarget.classList.add('active');
-                loadCloudDataset(); // Load persistent dataset from Firestore when opening tab
+                checkLocalDataset();
+            } else if (viewName === 'history') {
+                document.getElementById('view-history').classList.remove('hidden');
+                event.currentTarget.classList.add('active');
+                loadCopyHistory();
             }
         };
 
@@ -370,13 +391,13 @@
             document.getElementById('section-login').classList.toggle('hidden', tab !== 'login');
         };
 
-        // Upload and save to Firestore Cloud Database so it persists across refreshes
+        // Handle File Upload to Local Storage
         window.handleFilesUpload = async function(e) {
             const files = Array.from(e.target.files);
             const statusEl = document.getElementById('file-status-msg');
             if (files.length === 0) return;
 
-            statusEl.textContent = `Processing and uploading ${files.length} file(s) to Cloud...`;
+            statusEl.textContent = `Processing ${files.length} file(s)...`;
             statusEl.className = "msg";
             let parsedRows = [];
 
@@ -390,55 +411,30 @@
                     });
                 }
 
-                const activeUser = JSON.parse(sessionStorage.getItem('active_user') || '{}');
-                const uploaderName = activeUser.name || activeUser.email || "Unknown User";
-                const timestamp = new Date().toLocaleString();
-
-                // Save to Firestore 'datasets' collection
-                await setDoc(doc(db, "tms_storage", "active_dataset"), {
-                    records: parsedRows,
-                    fileCount: files.length,
-                    uploader: uploaderName,
-                    timestamp: timestamp
-                });
-
+                localStorage.setItem('tms_local_records', JSON.stringify(parsedRows));
                 globalEmployeeRecords = parsedRows;
-                updateUploadMeta(files.length, uploaderName, timestamp);
 
-                statusEl.textContent = `Successfully uploaded & synced ${parsedRows.length} records to Cloud Database!`;
+                statusEl.textContent = `Successfully loaded & cached ${parsedRows.length} records locally!`;
                 statusEl.className = "msg success";
                 document.getElementById('search-controls').classList.remove('hidden');
             } catch (err) {
-                statusEl.textContent = "Error uploading to cloud: " + err.message;
+                statusEl.textContent = "Error parsing files: " + err.message;
                 statusEl.className = "msg error";
             }
         };
 
-        // Load dataset from Firebase Cloud Database automatically
-        async function loadCloudDataset() {
+        function checkLocalDataset() {
             const statusEl = document.getElementById('file-status-msg');
-            try {
-                const docSnap = await getDoc(doc(db, "tms_storage", "active_dataset"));
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    globalEmployeeRecords = data.records || [];
-                    if (globalEmployeeRecords.length > 0) {
-                        updateUploadMeta(data.fileCount || 1, data.uploader || "System", data.timestamp || "Recent");
-                        document.getElementById('search-controls').classList.remove('hidden');
-                        statusEl.textContent = `Loaded ${globalEmployeeRecords.length} persistent records from Cloud.`;
-                        statusEl.className = "msg success";
-                    }
-                }
-            } catch (e) {
-                console.error("Error loading cloud dataset:", e);
+            const localData = localStorage.getItem('tms_local_records');
+            if (localData) {
+                globalEmployeeRecords = JSON.parse(localData);
+                document.getElementById('search-controls').classList.remove('hidden');
+                statusEl.textContent = `${globalEmployeeRecords.length} records loaded from local browser storage.`;
+                statusEl.className = "msg success";
+            } else {
+                statusEl.textContent = "No local Excel files uploaded yet.";
+                statusEl.className = "msg error";
             }
-        }
-
-        function updateUploadMeta(count, uploader, time) {
-            document.getElementById('meta-file-count').textContent = count;
-            document.getElementById('meta-uploader').textContent = uploader;
-            document.getElementById('meta-timestamp').textContent = time;
-            document.getElementById('upload-meta-box').classList.remove('hidden');
         }
 
         window.clearField = function(id) {
@@ -452,7 +448,7 @@
             document.getElementById('tms-results-container').innerHTML = '';
         };
 
-        // Combined Search Execution
+        // Search Execution
         window.executeSearch = function() {
             const nameQuery = document.getElementById('search-name').value.trim().toLowerCase();
             const passportQuery = document.getElementById('search-passport').value.trim().toLowerCase();
@@ -466,7 +462,7 @@
             }
 
             if (globalEmployeeRecords.length === 0) {
-                container.innerHTML = `<div class="msg error" style="text-align:center; margin-top:20px;">No records found in cloud database. Please upload Excel files.</div>`;
+                container.innerHTML = `<div class="msg error" style="text-align:center; margin-top:20px;">No records loaded. Please upload Excel files above.</div>`;
                 return;
             }
 
@@ -498,22 +494,12 @@
                         <table>
                             <thead>
                                 <tr>
-                                    <th>PPT NAME</th>
-                                    <th>PPT NO.</th>
-                                    <th>BOD</th>
-                                    <th>AGE STATUS</th>
-                                    <th>PREV. OFFICE</th>
-                                    <th>PREV. SITE</th>
-                                    <th>LAST STATUS</th>
-                                    <th>LAST STATUS DATE</th>
-                                    <th>TMS ID NUMBER</th>
-                                    <th>W/ RECORD ON TMS</th>
-                                    <th>Copy</th>
+                                    <th>PPT NAME</th><th>PPT NO.</th><th>BOD</th><th>AGE STATUS</th><th>PREV. OFFICE</th><th>PREV. SITE</th><th>LAST STATUS</th><th>LAST STATUS DATE</th><th>TMS ID NUMBER</th><th>W/ RECORD ON TMS</th><th>Copy</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td>N/A</td><td>N/A</td><td>N/A</td><td>N/A</td><td>N/A</td><td>N/A</td><td>N/A</td><td>N/A</td><td>N/A</td>
+                                    <td colspan="10">N/A</td>
                                     <td style="color:red; font-weight:bold;">NO</td>
                                     <td>-</td>
                                 </tr>
@@ -528,22 +514,12 @@
                     <table>
                         <thead>
                             <tr>
-                                <th>PPT NAME</th>
-                                <th>PPT NO.</th>
-                                <th>BOD</th>
-                                <th>AGE STATUS</th>
-                                <th>PREV. OFFICE</th>
-                                <th>PREV. SITE</th>
-                                <th>LAST STATUS</th>
-                                <th>LAST STATUS DATE</th>
-                                <th>TMS ID NUMBER</th>
-                                <th>W/ RECORD ON TMS</th>
-                                <th>Copy</th>
+                                <th>PPT NAME</th><th>PPT NO.</th><th>BOD</th><th>AGE STATUS</th><th>PREV. OFFICE</th><th>PREV. SITE</th><th>LAST STATUS</th><th>LAST STATUS DATE</th><th>TMS ID NUMBER</th><th>W/ RECORD ON TMS</th><th>Copy</th>
                             </tr>
                         </thead>
                         <tbody>`;
 
-            results.forEach((row, index) => {
+            results.forEach((row) => {
                 const pptName = getValue(row, ["English Name", "PPT NAME", "Name", "Full Name"]) || "N/A";
                 const pptNo = getValue(row, ["Passport", "Passport No", "PPT NO", "PPT NO."]) || "N/A";
                 const bdayRaw = getValue(row, ["Birthday", "Birthdate", "Birth Date"]) || "N/A";
@@ -591,7 +567,7 @@ W/ RECORD ON TMS: YES`;
                         <td>${statusDate}</td>
                         <td>${tmsId}</td>
                         <td style="color:green; font-weight:bold;">YES</td>
-                        <td><button class="badge-copy" onclick="copyToClipboard(\`${escapeQuote(copyText)}\`)">Copy</button></td>
+                        <td><button class="badge-copy" onclick="recordCopyAction(\`${escapeQuote(copyText)}\`)">Copy</button></td>
                     </tr>`;
             });
 
@@ -599,16 +575,62 @@ W/ RECORD ON TMS: YES`;
             container.innerHTML = tableHTML;
         };
 
-        window.copyToClipboard = function(text) {
-            navigator.clipboard.writeText(text).then(() => {
+        // Log copy action to Firebase Cloud Database so everyone can see history logs
+        window.recordCopyAction = async function(text) {
+            navigator.clipboard.writeText(text).then(async () => {
                 alert("Record copied to clipboard!");
+                try {
+                    const activeUser = JSON.parse(sessionStorage.getItem('active_user') || '{}');
+                    const userName = activeUser.name || activeUser.email || "Anonymous User";
+                    const timestamp = new Date().toLocaleString();
+
+                    await addDoc(collection(db, "copy_history"), {
+                        user: userName,
+                        timestamp: timestamp,
+                        content: text
+                    });
+                } catch (e) {
+                    console.error("Error logging history to cloud:", e);
+                }
             }).catch(err => {
                 alert("Failed to copy text: " + err);
             });
         };
 
+        // Load History Logs from Cloud
+        async function loadCopyHistory() {
+            const tbody = document.getElementById('history-table-body');
+            tbody.innerHTML = `<tr><td colspan="3" style="text-align: center;">Loading history logs from cloud...</td></tr>`;
+
+            try {
+                const querySnapshot = await getDocs(collection(db, "copy_history"));
+                tbody.innerHTML = '';
+
+                if (querySnapshot.empty) {
+                    tbody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: var(--text-light);">No copy history logs found yet.</td></tr>`;
+                    return;
+                }
+
+                querySnapshot.forEach(doc => {
+                    const log = doc.data();
+                    tbody.innerHTML += `
+                        <tr>
+                            <td style="font-weight:bold; color:var(--primary);">${escapeHtml(log.user)}</td>
+                            <td>${escapeHtml(log.timestamp)}</td>
+                            <td style="font-family:monospace; white-space:pre-wrap; text-align:left; font-size:12px;">${escapeHtml(log.content)}</td>
+                        </tr>`;
+                });
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: var(--error);">Error loading history: ${e.message}</td></tr>`;
+            }
+        }
+
         function escapeQuote(str) {
             return str.replace(/`/g, "\\`").replace(/\$/g, "\\$");
+        }
+
+        function escapeHtml(str) {
+            return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
         }
 
         // Authentication & Session Handler
@@ -660,7 +682,7 @@ W/ RECORD ON TMS: YES`;
                 sessionStorage.setItem('active_user', JSON.stringify(userData));
                 showDashboard(userData);
             } catch (e) {
-                msgEl.textContent = e.message;
+                msgEl.textContent = "Login error: " + e.message;
                 msgEl.className = "msg error";
             }
         };
@@ -699,6 +721,7 @@ W/ RECORD ON TMS: YES`;
             sessionStorage.removeItem('active_user');
             document.getElementById('sidebar-panel').classList.add('hidden');
             document.getElementById('view-tms').classList.add('hidden');
+            document.getElementById('view-history').classList.add('hidden');
             document.getElementById('view-portal').classList.remove('hidden');
             document.querySelectorAll('.auth-section').forEach(el => el.classList.add('hidden'));
             document.getElementById('public-nav').classList.remove('hidden');
