@@ -278,14 +278,14 @@
                 <h2 style="margin-top: 10px;">Passport & TMS Record Search</h2>
             </div>
             
-            <!-- Upload Meta Stamp (Shows when already uploaded) -->
+            <!-- Upload Meta Stamp -->
             <div id="upload-meta-box" class="upload-meta hidden">
                 <span>📁 Active Dataset Loaded (<strong id="meta-file-count">0</strong> file)</span>
                 <span>👤 Uploaded by: <strong id="meta-uploader">-</strong> | ⏰ Time: <strong id="meta-timestamp">-</strong></span>
                 <button class="btn btn-clear" style="padding: 4px 10px; font-size: 11px;" onclick="showUploadBox()">Replace File</button>
             </div>
 
-            <!-- File Upload Box (Hides automatically if uploaded) -->
+            <!-- File Upload Box -->
             <div id="upload-box-container" style="background-color: #f1f5f9; padding: 20px; border-radius: 8px; margin-bottom: 25px; border: 2px dashed var(--border);">
                 <label style="font-weight: bold; margin-bottom: 8px; font-size: 15px;">Upload Excel Files (Parsed instantly in memory):</label>
                 <input type="file" id="excel-file-input" accept=".xlsx, .xls" multiple onchange="handleFilesUpload(event)">
@@ -313,7 +313,7 @@
                 </div>
 
                 <div class="form-group">
-                    <label>BOD Filter (Birthday Precision Match)</label>
+                    <label>BOD Filter (Birthday Precision Match - e.g. 21-Nov-1962)</label>
                     <div class="btn-action-group">
                         <input type="text" id="search-bday" placeholder="Enter exact birthday to narrow down results...">
                         <button class="btn btn-clear" onclick="clearField('search-bday')">Clear</button>
@@ -402,7 +402,7 @@
         function formatDate(dateInput) {
             if (!dateInput) return "N/A";
             const d = new Date(dateInput);
-            if (isNaN(d)) return String(dateInput); // Return original string if not a standard date
+            if (isNaN(d)) return String(dateInput);
             
             const day = String(d.getDate()).padStart(2, '0');
             const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -436,7 +436,6 @@
                 const uploaderName = activeUser.name || activeUser.email || "System User";
                 const timestamp = new Date().toLocaleString();
 
-                // Save meta to session storage so it remembers the upload stamp during the session
                 sessionStorage.setItem('tms_meta', JSON.stringify({ fileCount: files.length, uploader: uploaderName, timestamp: timestamp }));
 
                 updateUploadMeta(files.length, uploaderName, timestamp);
@@ -484,7 +483,7 @@
             document.getElementById('tms-results-container').innerHTML = '';
         };
 
-        // Search Execution with Exact Output Formatting
+        // Search Execution with Flexible Date Matching
         window.executeSearch = function() {
             const nameQuery = document.getElementById('search-name').value.trim().toLowerCase();
             const passportQuery = document.getElementById('search-passport').value.trim().toLowerCase();
@@ -514,12 +513,20 @@
             const results = globalEmployeeRecords.filter(row => {
                 const name = String(getValue(row, ["English Name", "PPT NAME", "Name", "Full Name"])).toLowerCase();
                 const ppt = String(getValue(row, ["Passport", "Passport No", "PPT NO", "PPT NO."])).toLowerCase();
-                const bday = String(getValue(row, ["Birthday", "Birthdate", "Birth Date"])).trim().toLowerCase();
+                
+                const bdayRaw = getValue(row, ["Birthday", "Birthdate", "Birth Date"]);
+                const formattedRowBday = formatDate(bdayRaw).toLowerCase();
+                const bdayString = String(bdayRaw).trim().toLowerCase();
 
                 let matches = true;
                 if (nameQuery && !name.includes(nameQuery)) matches = false;
                 if (passportQuery && !ppt.includes(passportQuery)) matches = false;
-                if (bdayQuery && bday !== bdayQuery && !bday.includes(bdayQuery)) matches = false;
+                
+                if (bdayQuery) {
+                    if (bdayString !== bdayQuery && formattedRowBday !== bdayQuery && !bdayString.includes(bdayQuery)) {
+                        matches = false;
+                    }
+                }
 
                 return matches;
             });
@@ -553,6 +560,8 @@ AGE STATUS: N/A`;
                 const office = getValue(row, ["Office", "PREV. OFFICE", "Previous Office"]) || "N/A";
                 const site = getValue(row, ["Site", "PREV. SITE", "Company", "Previous Site"]) || "N/A";
                 const status = getValue(row, ["Status", "LAST STATUS", "Last Status"]) || "N/A";
+                
+                // Using "Status Date" column explicitly as requested
                 const statusDateRaw = getValue(row, ["Status Date", "LAST STATUS DATE"]);
                 const tmsId = getValue(row, ["TMS ID", "TMS ID NUMBER", "ID Number", "ID"]) || "N/A";
 
