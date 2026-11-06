@@ -355,7 +355,15 @@
                 <p style="color: var(--text-light);">Active & On Leave counts per Office / Section.</p>
             </div>
 
-            <div style="background-color: #f1f5f9; padding: 20px; border-radius: 8px; margin-bottom: 25px; border: 2px dashed var(--border);">
+            <!-- Meta Box (Hidden by default, shows uploaded file name, uploader, timestamp once data exists) -->
+            <div id="ops-upload-meta-box" class="upload-meta hidden">
+                <span>📁 File: <strong id="ops-meta-filename">-</strong></span>
+                <span>👤 Uploader: <strong id="ops-meta-uploader">-</strong> | ⏰ Time: <strong id="ops-meta-timestamp">-</strong></span>
+                <button class="btn btn-clear" style="padding: 4px 10px; font-size: 11px;" onclick="showOpsUploadBox()">Replace File</button>
+            </div>
+
+            <!-- Upload Box Container -->
+            <div id="ops-upload-box-container" style="background-color: #f1f5f9; padding: 20px; border-radius: 8px; margin-bottom: 25px; border: 2px dashed var(--border);">
                 <label style="font-weight: bold; margin-bottom: 8px; font-size: 15px;">Upload Master Excel Roster to Update Cloud Counts:</label>
                 <input type="file" id="ops-excel-file-input" accept=".xlsx, .xls" multiple onchange="handleOpsDashboardUpload(event)">
                 <div id="ops-upload-status" class="msg" style="margin-top: 8px;"></div>
@@ -393,8 +401,8 @@
             </div>
             
             <div id="upload-meta-box" class="upload-meta hidden">
-                <span>📁 Active Dataset Loaded (<strong id="meta-file-count">0</strong> file)</span>
-                <span>👤 Uploaded by: <strong id="meta-uploader">-</strong> | ⏰ Time: <strong id="meta-timestamp">-</strong></span>
+                <span>📁 File: <strong id="meta-filename">-</strong></span>
+                <span>👤 Uploader: <strong id="meta-uploader">-</strong> | ⏰ Time: <strong id="meta-timestamp">-</strong></span>
                 <button class="btn btn-clear" style="padding: 4px 10px; font-size: 11px;" onclick="showUploadBox()">Replace File</button>
             </div>
 
@@ -565,6 +573,7 @@
             statusEl.textContent = `Processing ${files.length} file(s) for Admin-Ops counts...`;
             statusEl.className = "msg";
             let parsedRows = [];
+            const fileNames = files.map(f => f.name).join(", ");
 
             try {
                 for (let file of files) {
@@ -593,7 +602,6 @@
 
                     let status = String(getValue(row, ["Status", "LAST STATUS", "Last Status", "Employment Status"])).trim().toLowerCase();
 
-                    // Count ONLY Active & On Leave
                     if (status.includes("active") || status.includes("employed") || status.includes("duty") || status.includes("normal") || (!status.includes("leave") && !status.includes("resigned") && !status.includes("block") && !status.includes("term"))) {
                         if (!countsMap[office]) countsMap[office] = { active: 0, leave: 0 };
                         countsMap[office].active += 1;
@@ -603,12 +611,20 @@
                     }
                 });
 
-                // Save counts to Firebase Cloud Firestore (stores only lightweight JSON document)
-                await setDoc(doc(db, "admin_ops_analytics", "latest_counts"), { data: countsMap });
+                const activeUser = JSON.parse(sessionStorage.getItem('active_user') || '{}');
+                const uploaderName = activeUser.name || activeUser.email || "System User";
+                const timestamp = new Date().toLocaleString();
+
+                const metaData = { fileName: fileNames, uploader: uploaderName, timestamp: timestamp };
+
+                // Save counts and meta to Firebase Cloud Firestore
+                await setDoc(doc(db, "admin_ops_analytics", "latest_counts"), { data: countsMap, meta: metaData });
 
                 statusEl.textContent = `Dashboard counts successfully calculated and saved to cloud!`;
                 statusEl.className = "msg success";
 
+                updateOpsUploadMeta(metaData.fileName, metaData.uploader, metaData.timestamp);
+                document.getElementById('ops-upload-box-container').classList.add('hidden');
                 renderOpsTable(countsMap);
             } catch (err) {
                 statusEl.textContent = "Error saving to cloud: " + err.message;
@@ -623,22 +639,46 @@
             try {
                 const docSnap = await getDocs(collection(db, "admin_ops_analytics"));
                 let countsMap = null;
+                let metaData = null;
                 
                 docSnap.forEach(d => {
                     if (d.id === "latest_counts") {
                         countsMap = d.data().data;
+                        metaData = d.data().meta;
                     }
                 });
 
                 if (!countsMap) {
                     tbodyEl.innerHTML = `<tr><td colspan="4" style="color:var(--text-light);">No cloud counts recorded yet. Upload an Excel roster file above.</td></tr>`;
+                    document.getElementById('ops-upload-box-container').classList.remove('hidden');
+                    document.getElementById('ops-upload-meta-box').classList.add('hidden');
                     return;
+                }
+
+                if (metaData) {
+                    updateOpsUploadMeta(metaData.fileName, metaData.uploader, metaData.timestamp);
+                    document.getElementById('ops-upload-box-container').classList.add('hidden');
+                } else {
+                    document.getElementById('ops-upload-box-container').classList.remove('hidden');
+                    document.getElementById('ops-upload-meta-box').classList.add('hidden');
                 }
 
                 renderOpsTable(countsMap);
             } catch (e) {
                 tbodyEl.innerHTML = `<tr><td colspan="4" style="color:var(--error);">Error loading cloud counts: ${e.message}</td></tr>`;
             }
+        }
+
+        window.showOpsUploadBox = function() {
+            document.getElementById('ops-upload-box-container').classList.remove('hidden');
+            document.getElementById('ops-upload-meta-box').classList.add('hidden');
+        };
+
+        function updateOpsUploadMeta(fileName, uploader, time) {
+            document.getElementById('ops-meta-filename').textContent = fileName;
+            document.getElementById('ops-meta-uploader').textContent = uploader;
+            document.getElementById('ops-meta-timestamp').textContent = time;
+            document.getElementById('ops-upload-meta-box').classList.remove('hidden');
         }
 
         function renderOpsTable(countsMap) {
@@ -669,7 +709,6 @@
                 `;
             });
 
-            // Total counts row at the bottom
             tbodyEl.innerHTML += `
                 <tr style="background-color: #f1f5f9; font-weight: bold;">
                     <td style="text-align: left;">TOTAL COUNTS</td>
@@ -700,6 +739,7 @@
             statusEl.textContent = `Processing ${files.length} file(s)...`;
             statusEl.className = "msg";
             let parsedRows = [];
+            const fileNames = files.map(f => f.name).join(", ");
 
             try {
                 for (let file of files) {
@@ -716,9 +756,9 @@
                 const uploaderName = activeUser.name || activeUser.email || "System User";
                 const timestamp = new Date().toLocaleString();
 
-                sessionStorage.setItem('tms_meta', JSON.stringify({ fileCount: files.length, uploader: uploaderName, timestamp: timestamp }));
+                sessionStorage.setItem('tms_meta', JSON.stringify({ fileName: fileNames, uploader: uploaderName, timestamp: timestamp }));
 
-                updateUploadMeta(files.length, uploaderName, timestamp);
+                updateUploadMeta(fileNames, uploaderName, timestamp);
                 document.getElementById('upload-box-container').classList.add('hidden');
                 document.getElementById('search-controls').classList.remove('hidden');
             } catch (err) {
@@ -731,7 +771,7 @@
             const localMeta = sessionStorage.getItem('tms_meta');
             if (globalEmployeeRecords.length > 0 && localMeta) {
                 const meta = JSON.parse(localMeta);
-                updateUploadMeta(meta.fileCount, meta.uploader, meta.timestamp);
+                updateUploadMeta(meta.fileName, meta.uploader, meta.timestamp);
                 document.getElementById('upload-box-container').classList.add('hidden');
                 document.getElementById('search-controls').classList.remove('hidden');
             } else {
@@ -745,8 +785,8 @@
             document.getElementById('upload-meta-box').classList.add('hidden');
         };
 
-        function updateUploadMeta(count, uploader, time) {
-            document.getElementById('meta-file-count').textContent = count;
+        function updateUploadMeta(fileName, uploader, time) {
+            document.getElementById('meta-filename').textContent = fileName;
             document.getElementById('meta-uploader').textContent = uploader;
             document.getElementById('meta-timestamp').textContent = time;
             document.getElementById('upload-meta-box').classList.remove('hidden');
