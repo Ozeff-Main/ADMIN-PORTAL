@@ -88,7 +88,7 @@
 
         .container {
             width: 100%;
-            max-width: 1000px;
+            max-width: 1100px;
             background: var(--card-bg);
             padding: 40px;
             border-radius: 12px;
@@ -200,8 +200,21 @@
         }
         .badge-copy:hover { background-color: #4f46e5; }
 
+        .btn-add-expat {
+            background-color: #059669;
+            color: white;
+            border: none;
+            padding: 6px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+        .btn-add-expat:hover { background-color: #047857; }
+
         table { width: 100%; border-collapse: collapse; margin-top: 15px; text-align: center; }
-        th, td { border: 1px solid var(--border); padding: 10px; font-size: 13px; }
+        th, td { border: 1px solid var(--border); padding: 8px; font-size: 12px; }
         th { background-color: var(--primary); color: white; font-weight: 600; }
         td { background-color: #ffffff; }
 
@@ -226,6 +239,23 @@
         .val-active { color: #059669; font-weight: bold; }
         .val-leave { color: #d97706; font-weight: bold; }
         .val-total { color: var(--primary); font-weight: bold; }
+
+        .table-select {
+            padding: 4px 6px;
+            font-size: 11px;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+        }
+
+        .remark-tag {
+            background-color: #e0f2fe;
+            color: #0369a1;
+            padding: 3px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            display: inline-block;
+            margin-top: 4px;
+        }
     </style>
 </head>
 <body>
@@ -235,6 +265,7 @@
         <h3>Portal Menu</h3>
         <button class="side-btn active" onclick="switchMainView('portal')">🔑 Account Portal</button>
         <button id="nav-ops-dashboard" class="side-btn hidden" onclick="switchMainView('ops-dashboard')">📊 Admin-Ops Analytics</button>
+        <button id="nav-incoming-expat" class="side-btn hidden" onclick="switchMainView('incoming-expat')">✈️ Incoming Expat Employee</button>
         <button id="nav-tms" class="side-btn hidden" onclick="switchMainView('tms')">📋 TMS Record Search</button>
         <button id="nav-history" class="side-btn hidden" onclick="switchMainView('history')">📜 Copied History Logs</button>
     </div>
@@ -355,14 +386,12 @@
                 <p style="color: var(--text-light);">Active & On Leave counts per Office / Section.</p>
             </div>
 
-            <!-- Meta Box (Hidden by default, shows uploaded file name, uploader, timestamp once data exists) -->
             <div id="ops-upload-meta-box" class="upload-meta hidden">
                 <span>📁 File: <strong id="ops-meta-filename">-</strong></span>
                 <span>👤 Uploader: <strong id="ops-meta-uploader">-</strong> | ⏰ Time: <strong id="ops-meta-timestamp">-</strong></span>
                 <button class="btn btn-clear" style="padding: 4px 10px; font-size: 11px;" onclick="showOpsUploadBox()">Replace File</button>
             </div>
 
-            <!-- Upload Box Container -->
             <div id="ops-upload-box-container" style="background-color: #f1f5f9; padding: 20px; border-radius: 8px; margin-bottom: 25px; border: 2px dashed var(--border);">
                 <label style="font-weight: bold; margin-bottom: 8px; font-size: 15px;">Upload Master Excel Roster to Update Cloud Counts:</label>
                 <input type="file" id="ops-excel-file-input" accept=".xlsx, .xls" multiple onchange="handleOpsDashboardUpload(event)">
@@ -393,7 +422,39 @@
             </div>
         </div>
 
-        <!-- VIEW 3: PASSPORT & TMS RECORD SEARCH (Protected) -->
+        <!-- VIEW 3: INCOMING EXPAT EMPLOYEE PORTAL (Exclusive Admin-Ops) -->
+        <div id="view-incoming-expat" class="container hidden" style="max-width: 1200px;">
+            <div style="text-align: center; margin-bottom: 20px;">
+                <h2 style="margin-top: 10px;">✈️ Incoming Expat Employee Portal</h2>
+                <p style="color: var(--text-light);">Manage expat intake status, uniform sizes, drug tests, and ID processing.</p>
+            </div>
+
+            <div style="overflow-x: auto; margin-top: 15px;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Declare Date</th>
+                            <th>Passport Number</th>
+                            <th>Section</th>
+                            <th>Name</th>
+                            <th>TMS Status</th>
+                            <th>ID Process Status</th>
+                            <th>Uniform Size</th>
+                            <th>Lace</th>
+                            <th>Uniform</th>
+                            <th>Drug Test</th>
+                            <th>Remarks</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="incoming-expat-table-body">
+                        <tr><td colspan="12" style="text-align:center;">Loading incoming expat roster...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- VIEW 4: PASSPORT & TMS RECORD SEARCH (Protected) -->
         <div id="view-tms" class="container hidden">
             <div style="text-align: center; margin-bottom: 20px;">
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
@@ -448,7 +509,7 @@
             <div id="tms-results-container"></div>
         </div>
 
-        <!-- VIEW 4: COPIED HISTORY LOGS -->
+        <!-- VIEW 5: COPIED HISTORY LOGS -->
         <div id="view-history" class="container hidden">
             <h2>📜 Shared Copied History Logs</h2>
             <p style="text-align: center; color: var(--text-light);">Here are all the employee records copied by any user across the system.</p>
@@ -474,7 +535,7 @@
     <!-- Firebase & Application Scripts -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, getDocs, setDoc, doc, deleteDoc, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, getDocs, setDoc, doc, deleteDoc, updateDoc, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyDfR1qBZbTi9HnHJ97T_AM1Mc4yyuPLwUU",
@@ -488,6 +549,11 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const SUPER_ADMIN_EMAIL = "anthonyjosephramos30@gmail.com";
+
+        // Options lists
+        const ID_PROCESS_STATUSES = ["CHECKING", "FOR ID", "COMPLETED", "VIP", "CANCEL"];
+        const UNIFORM_SIZES = ["XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "6XL", "7XL", "ACCESS CARD", "UNIFORM EXEMPT"];
+        const DRUG_TEST_STATUSES = ["NOT PAID YET", "WITH ORF", "NEGATIVE", "POSITIVE"];
 
         // Department to Position mapping
         const departmentPositions = {
@@ -507,6 +573,7 @@
             document.querySelectorAll('.side-btn').forEach(btn => btn.classList.remove('active'));
             document.getElementById('view-portal').classList.add('hidden');
             document.getElementById('view-ops-dashboard').classList.add('hidden');
+            document.getElementById('view-incoming-expat').classList.add('hidden');
             document.getElementById('view-tms').classList.add('hidden');
             document.getElementById('view-history').classList.add('hidden');
 
@@ -517,6 +584,10 @@
                 document.getElementById('view-ops-dashboard').classList.remove('hidden');
                 event.currentTarget.classList.add('active');
                 loadCloudOpsDashboardCounts();
+            } else if (viewName === 'incoming-expat') {
+                document.getElementById('view-incoming-expat').classList.remove('hidden');
+                event.currentTarget.classList.add('active');
+                loadIncomingExpatTable();
             } else if (viewName === 'tms') {
                 document.getElementById('view-tms').classList.remove('hidden');
                 event.currentTarget.classList.add('active');
@@ -564,6 +635,129 @@
             const year = d.getFullYear();
             return `${day}-${month}-${year}`;
         }
+
+        /* INCOMING EXPAT PORTAL LOGIC */
+        window.addToIncomingExpatPortal = async function(pptNo, office, name, tmsStatus) {
+            try {
+                const activeUser = JSON.parse(sessionStorage.getItem('active_user') || '{}');
+                const declareDate = new Date().toLocaleString();
+
+                await addDoc(collection(db, "incoming_expats"), {
+                    declareDate: declareDate,
+                    passportNumber: pptNo || "N/A",
+                    section: office || "N/A",
+                    name: name || "N/A",
+                    tmsRecordStatus: tmsStatus, // YES or NO
+                    idProcessStatus: "CHECKING",
+                    uniformSize: "M",
+                    laceStatus: false,
+                    uniformStatus: false,
+                    drugTest: "NOT PAID YET",
+                    remarks: "",
+                    createdAt: new Date().getTime()
+                });
+
+                alert(`Success: ${name} added to Incoming Expat Employee Portal!`);
+            } catch (e) {
+                alert("Error adding to Incoming Expat Portal: " + e.message);
+            }
+        };
+
+        async function loadIncomingExpatTable() {
+            const tbody = document.getElementById('incoming-expat-table-body');
+            tbody.innerHTML = `<tr><td colspan="12" style="text-align:center;">Loading incoming expat roster...</td></tr>`;
+
+            try {
+                const querySnapshot = await getDocs(collection(db, "incoming_expats"));
+                tbody.innerHTML = '';
+
+                if (querySnapshot.empty) {
+                    tbody.innerHTML = `<tr><td colspan="12" style="text-align:center; color:var(--text-light);">No incoming expat entries found. Add entries from TMS Search.</td></tr>`;
+                    return;
+                }
+
+                let records = [];
+                querySnapshot.forEach(docSnap => {
+                    records.push({ id: docSnap.id, ...docSnap.data() });
+                });
+
+                records.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+                records.forEach(rec => {
+                    const idOptions = ID_PROCESS_STATUSES.map(opt => `<option value="${opt}" ${rec.idProcessStatus === opt ? 'selected' : ''}>${opt}</option>`).join('');
+                    const sizeOptions = UNIFORM_SIZES.map(opt => `<option value="${opt}" ${rec.uniformSize === opt ? 'selected' : ''}>${opt}</option>`).join('');
+                    const drugOptions = DRUG_TEST_STATUSES.map(opt => `<option value="${opt}" ${rec.drugTest === opt ? 'selected' : ''}>${opt}</option>`).join('');
+
+                    const remarkDisplay = rec.remarks ? `<div class="remark-tag">💬 ${escapeHtml(rec.remarks)}</div>` : '';
+
+                    tbody.innerHTML += `
+                        <tr>
+                            <td style="font-size:11px;">${escapeHtml(rec.declareDate)}</td>
+                            <td><strong style="color:var(--primary);">${escapeHtml(rec.passportNumber)}</strong></td>
+                            <td>${escapeHtml(rec.section)}</td>
+                            <td style="font-weight:bold; text-align:left;">${escapeHtml(rec.name)}</td>
+                            <td><span class="status-badge ${rec.tmsRecordStatus === 'YES' ? 'status-approved' : 'status-pending'}">${rec.tmsRecordStatus}</span></td>
+                            <td>
+                                <select class="table-select" onchange="updateExpatField('${rec.id}', 'idProcessStatus', this.value)">
+                                    ${idOptions}
+                                </select>
+                            </td>
+                            <td>
+                                <select class="table-select" onchange="updateExpatField('${rec.id}', 'uniformSize', this.value)">
+                                    ${sizeOptions}
+                                </select>
+                            </td>
+                            <td>
+                                <input type="checkbox" ${rec.laceStatus ? 'checked' : ''} onchange="updateExpatField('${rec.id}', 'laceStatus', this.checked)">
+                            </td>
+                            <td>
+                                <input type="checkbox" ${rec.uniformStatus ? 'checked' : ''} onchange="updateExpatField('${rec.id}', 'uniformStatus', this.checked)">
+                            </td>
+                            <td>
+                                <select class="table-select" onchange="updateExpatField('${rec.id}', 'drugTest', this.value)">
+                                    ${drugOptions}
+                                </select>
+                            </td>
+                            <td>${remarkDisplay}</td>
+                            <td>
+                                <button class="btn btn-clear" style="padding:2px 6px; font-size:10px;" onclick="promptExpatRemark('${rec.id}', '${escapeQuote(rec.remarks || '')}')">Edit Remark</button>
+                                <button class="btn btn-danger" style="padding:2px 6px; font-size:10px;" onclick="deleteExpatRecord('${rec.id}')">Delete</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="12" style="text-align:center; color:var(--error);">Error loading records: ${e.message}</td></tr>`;
+            }
+        }
+
+        window.updateExpatField = async function(id, field, value) {
+            try {
+                const docRef = doc(db, "incoming_expats", id);
+                await updateDoc(docRef, { [field]: value });
+            } catch (e) {
+                alert("Error updating record: " + e.message);
+            }
+        };
+
+        window.promptExpatRemark = async function(id, currentRemark) {
+            const newRemark = prompt("Enter Remark / Recommendation:", currentRemark);
+            if (newRemark !== null) {
+                await updateExpatField(id, 'remarks', newRemark.trim());
+                loadIncomingExpatTable();
+            }
+        };
+
+        window.deleteExpatRecord = async function(id) {
+            if (confirm("Are you sure you want to delete this incoming expat record?")) {
+                try {
+                    await deleteDoc(doc(db, "incoming_expats", id));
+                    loadIncomingExpatTable();
+                } catch (e) {
+                    alert("Error deleting record: " + e.message);
+                }
+            }
+        };
 
         window.handleOpsDashboardUpload = async function(e) {
             const files = Array.from(e.target.files);
@@ -617,7 +811,6 @@
 
                 const metaData = { fileName: fileNames, uploader: uploaderName, timestamp: timestamp };
 
-                // Save counts and meta to Firebase Cloud Firestore
                 await setDoc(doc(db, "admin_ops_analytics", "latest_counts"), { data: countsMap, meta: metaData });
 
                 statusEl.textContent = `Dashboard counts successfully calculated and saved to cloud!`;
@@ -887,7 +1080,10 @@ AGE STATUS: ${ageStatusOutput}`;
                     <div class="record-card" style="border-left-color: var(--error);">
                         <div class="card-header">
                             <span>Search Result: No Record Found</span>
-                            <button class="badge-copy" onclick="recordCopyAction(\`${escapeQuote(notFoundText)}\`)">📋 Copy Not Found Result</button>
+                            <div>
+                                <button class="badge-copy" onclick="recordCopyAction(\`${escapeQuote(notFoundText)}\`)">📋 Copy Not Found Result</button>
+                                <button class="btn-add-expat" onclick="addToIncomingExpatPortal('${escapeQuote(inputPassport)}', 'N/A', '${escapeQuote(inputName)}', 'NO')">➕ Add to Incoming Expat Portal</button>
+                            </div>
                         </div>
                         <div>${notFoundText}</div>
                     </div>`;
@@ -934,7 +1130,10 @@ AGE STATUS: ${ageStatus}`;
                 card.innerHTML = `
                     <div class="card-header">
                         <strong>Record #${index + 1}</strong>
-                        <button class="badge-copy" onclick="recordCopyAction(\`${escapeQuote(cardText)}\`)">📋 Copy Record</button>
+                        <div>
+                            <button class="badge-copy" onclick="recordCopyAction(\`${escapeQuote(cardText)}\`)">📋 Copy Record</button>
+                            <button class="btn-add-expat" onclick="addToIncomingExpatPortal('${escapeQuote(pptNo)}', '${escapeQuote(office)}', '${escapeQuote(pptName)}', 'YES')">➕ Add to Incoming Expat Portal</button>
+                        </div>
                     </div>
                     <div>${cardText}</div>
                 `;
@@ -1000,7 +1199,7 @@ AGE STATUS: ${ageStatus}`;
         }
 
         function escapeQuote(str) {
-            return str.replace(/`/g, "\\`").replace(/\$/g, "\\$");
+            return String(str).replace(/`/g, "\\`").replace(/\$/g, "\\$").replace(/'/g, "\\'");
         }
 
         function escapeHtml(str) {
@@ -1095,15 +1294,17 @@ AGE STATUS: ${ageStatus}`;
             document.getElementById('user-display-department').textContent = userDept;
 
             const isSuper = user.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase() || userPos === "Super Account";
-            const isAdminOps = userPos.includes("Admin-Ops") || userPos === "Admin Manager";
+            const isAdminOps = userPos.includes("Admin-Ops") || userPos === "Admin Manager" || userDept === "Admin-Ops Department";
             const isApprovedUser = userStatus === "Approved" && userPos !== "Unassigned";
 
             if (isSuper || isAdminOps) {
                 document.getElementById('nav-ops-dashboard').classList.remove('hidden');
+                document.getElementById('nav-incoming-expat').classList.remove('hidden');
                 document.getElementById('nav-tms').classList.remove('hidden');
                 document.getElementById('nav-history').classList.remove('hidden');
             } else {
                 document.getElementById('nav-ops-dashboard').classList.add('hidden');
+                document.getElementById('nav-incoming-expat').classList.add('hidden');
                 document.getElementById('nav-tms').classList.add('hidden');
                 document.getElementById('nav-history').classList.add('hidden');
             }
@@ -1302,6 +1503,7 @@ AGE STATUS: ${ageStatus}`;
             sessionStorage.removeItem('active_user');
             document.getElementById('sidebar-panel').classList.add('hidden');
             document.getElementById('view-ops-dashboard').classList.add('hidden');
+            document.getElementById('view-incoming-expat').classList.add('hidden');
             document.getElementById('view-tms').classList.add('hidden');
             document.getElementById('view-history').classList.add('hidden');
             document.getElementById('view-portal').classList.remove('hidden');
