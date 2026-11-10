@@ -113,12 +113,19 @@
             border: 1px solid var(--border);
             border-radius: 6px;
             font-size: 14px;
+            text-transform: uppercase;
         }
 
         input:focus, select:focus, textarea:focus {
             outline: none;
             border-color: var(--primary);
             box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        input[readonly], select[disabled], input[disabled] {
+            background-color: #f1f5f9;
+            color: #64748b;
+            cursor: not-allowed;
         }
 
         .btn-action-group {
@@ -266,12 +273,21 @@
         .modal-content {
             background: #ffffff;
             width: 100%;
-            max-width: 600px;
+            max-width: 750px;
             padding: 30px;
             border-radius: 12px;
             box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
             max-height: 90vh;
             overflow-y: auto;
+        }
+
+        .section-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        .section-grid-full {
+            grid-column: span 2;
         }
     </style>
 </head>
@@ -476,7 +492,7 @@
         <div id="view-section-portal" class="container hidden">
             <div style="text-align: center; margin-bottom: 20px;">
                 <h2 style="margin-top: 10px;">🏢 Section Department Portal</h2>
-                <p style="color: var(--text-light);">Incoming expat records pending ID processing (<span id="user-section-label" style="font-weight:bold; color:var(--primary);"></span>).</p>
+                <p style="color: var(--text-light);">Incoming expat records pending registration (<span id="user-section-label" style="font-weight:bold; color:var(--primary);"></span>).</p>
             </div>
 
             <div style="overflow-x: auto; margin-top: 15px;">
@@ -486,12 +502,14 @@
                             <th>Passport Number</th>
                             <th>Section</th>
                             <th>Name</th>
-                            <th>ID Process</th>
+                            <th>Registration Status</th>
+                            <th>Register Date</th>
                             <th>Drug Test</th>
+                            <th>Action</th>
                         </tr>
                     </thead>
                     <tbody id="section-portal-table-body">
-                        <tr><td colspan="5" style="text-align:center;">Loading section records...</td></tr>
+                        <tr><td colspan="7" style="text-align:center;">Loading section records...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -656,6 +674,148 @@
         </div>
     </div>
 
+    <!-- SECTION EMPLOYEE REGISTRATION MODAL -->
+    <div id="section-register-modal" class="modal-overlay hidden">
+        <div class="modal-content" style="max-width: 850px;">
+            <h3 style="margin-top:0; color:var(--primary); text-align:center;">📋 Section Employee Registration Form</h3>
+            <input type="hidden" id="reg-record-id">
+
+            <div class="section-grid">
+                <div class="form-group">
+                    <label>Section (Locked)</label>
+                    <input type="text" id="reg-section" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Account Name / Emergency Contact Name (Locked)</label>
+                    <input type="text" id="reg-account-name" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Passport Number (Locked)</label>
+                    <input type="text" id="reg-passport" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Passport Place of Issuance</label>
+                    <input type="text" id="reg-ppt-place" placeholder="E.g. MANILA">
+                </div>
+                <div class="form-group">
+                    <label>Passport Issue Date (MM/DD/YYYY)</label>
+                    <input type="text" id="reg-ppt-issue" placeholder="MM/DD/YYYY">
+                </div>
+                <div class="form-group">
+                    <label>Passport Expiry Date (MM/DD/YYYY)</label>
+                    <input type="text" id="reg-ppt-expiry" placeholder="MM/DD/YYYY">
+                </div>
+                <div class="form-group">
+                    <label>English Name (Locked)</label>
+                    <input type="text" id="reg-english-name" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Chinese Name (Locked)</label>
+                    <input type="text" id="reg-chinese-name" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Birthdate (MM/DD/YYYY)</label>
+                    <input type="text" id="reg-birthdate" placeholder="MM/DD/YYYY">
+                </div>
+                <div class="form-group">
+                    <label>Sex</label>
+                    <select id="reg-sex">
+                        <option value="M">M</option>
+                        <option value="F">F</option>
+                    </select>
+                </div>
+                <div class="form-group section-grid-full">
+                    <label>Nationality</label>
+                    <select id="reg-nationality">
+                        <option value="BANGLADESHI">BANGLADESHI</option>
+                        <option value="BURMESE">BURMESE</option>
+                        <option value="CAMBODIAN">CAMBODIAN</option>
+                        <option value="CHINESE">CHINESE</option>
+                        <option value="CONGOLESE">CONGOLESE</option>
+                        <option value="INDONESIAN">INDONESIAN</option>
+                        <option value="LAOS">LAOS</option>
+                        <option value="MALAGASY">MALAGASY</option>
+                        <option value="MALAYSIAN">MALAYSIAN</option>
+                        <option value="MONGOLIAN">MONGOLIAN</option>
+                        <option value="TAIWANESE">TAIWANESE</option>
+                        <option value="TAJIKISTAN">TAJIKISTAN</option>
+                        <option value="THAI">THAI</option>
+                        <option value="VANUATU">VANUATU</option>
+                        <option value="VIETNAMESE">VIETNAMESE</option>
+                    </select>
+                </div>
+                <div class="form-group section-grid-full">
+                    <label>Permanent Address</label>
+                    <textarea id="reg-permanent-address" rows="2" placeholder="Permanent address..."></textarea>
+                </div>
+
+                <!-- PHILIPPINE ADDRESS SUB-FIELDS -->
+                <div class="form-group section-grid-full" style="background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
+                    <label style="color: var(--primary); margin-bottom: 8px; font-size: 14px;">Philippine Address Details:</label>
+                    <div class="section-grid">
+                        <input type="text" id="pa-unit" placeholder="Unit Room/Floor/House no." style="margin-bottom:10px;">
+                        <input type="text" id="pa-building" placeholder="Building name" style="margin-bottom:10px;">
+                        <input type="text" id="pa-street" placeholder="Street Name" style="margin-bottom:10px;">
+                        <input type="text" id="pa-subdivision" placeholder="Subdivision" style="margin-bottom:10px;">
+                        <input type="text" id="pa-barangay" placeholder="Barangay" style="margin-bottom:10px;">
+                        <input type="text" id="pa-municipality" placeholder="Municipality" style="margin-bottom:10px;">
+                        <input type="text" id="pa-province" placeholder="Province/State/Country">
+                        <input type="text" id="pa-zipcode" placeholder="Zipcode">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Email Address</label>
+                    <input type="email" id="reg-email-addr" placeholder="EMAIL@DOMAIN.COM">
+                </div>
+                <div class="form-group">
+                    <label>Contact No. (Mobile Number)</label>
+                    <input type="text" id="reg-contact" placeholder="09XXXXXXXXX">
+                </div>
+                <div class="form-group">
+                    <label>Civil Status</label>
+                    <select id="reg-civil-status" onchange="toggleSpouseField()">
+                        <option value="SINGLE">SINGLE</option>
+                        <option value="MARRIED">MARRIED</option>
+                    </select>
+                </div>
+                <div class="form-group" id="spouse-group" style="display: none;">
+                    <label>Spouse Name</label>
+                    <input type="text" id="reg-spouse" placeholder="SPOUSE FULL NAME">
+                </div>
+                <div class="form-group">
+                    <label>Father Name</label>
+                    <input type="text" id="reg-father" placeholder="FATHER FULL NAME">
+                </div>
+                <div class="form-group">
+                    <label>Mother Name</label>
+                    <input type="text" id="reg-mother" placeholder="MOTHER FULL NAME">
+                </div>
+                <div class="form-group">
+                    <label>Height (cm/m)</label>
+                    <input type="text" id="reg-height" placeholder="E.G. 175 CM">
+                </div>
+                <div class="form-group">
+                    <label>Weight (kg)</label>
+                    <input type="text" id="reg-weight" placeholder="E.G. 70 KG">
+                </div>
+                <div class="form-group">
+                    <label>Emergency Contact No. (Mobile Number)</label>
+                    <input type="text" id="reg-emerg-contact" placeholder="09XXXXXXXXX">
+                </div>
+                <div class="form-group">
+                    <label>ID Name</label>
+                    <input type="text" id="reg-id-name" placeholder="ID CARD NAME">
+                </div>
+            </div>
+
+            <div style="display:flex; gap:10px; margin-top:25px;">
+                <button class="btn btn-clear" style="flex:1;" onclick="saveSectionRegistration()">Save Registration & Mark DONE</button>
+                <button class="btn btn-danger" style="flex:1;" onclick="closeSectionRegisterModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Firebase & Application Scripts -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -674,7 +834,6 @@
         const db = getFirestore(app);
         const SUPER_ADMIN_EMAIL = "anthonyjosephramos30@gmail.com";
 
-        // Department to Position mapping
         const departmentPositions = {
             "Admin-Ops Department": ["Super Account", "Admin-Ops", "Driver", "Admin-Ops Clerk", "Admin-Ops Supervisor", "Admin-Ops Assistant Manager", "Admin Manager"],
             "Finance Department": ["Finance Clerk", "Warehouse Clerk", "Purchasing Supervisor"],
@@ -688,6 +847,7 @@
 
         let globalEmployeeRecords = [];
         let expatRecordsCache = {};
+        let sectionRecordsCache = {};
 
         window.switchMainView = function(viewName) {
             document.querySelectorAll('.side-btn').forEach(btn => btn.classList.remove('active'));
@@ -771,13 +931,15 @@
                     passportNumber: pptNo || "N/A",
                     section: office || "N/A",
                     name: name || "N/A",
-                    tmsRecordStatus: tmsStatus, // YES or NO
+                    tmsRecordStatus: tmsStatus,
                     idProcessStatus: "CHECKING",
                     uniformSize: "M",
                     laceStatus: false,
                     uniformStatus: false,
                     drugTest: "NOT PAID YET",
                     remarks: "",
+                    registrationStatus: "PENDING",
+                    registerDate: "N/A",
                     createdAt: new Date().getTime()
                 });
 
@@ -850,15 +1012,16 @@
             }
 
             document.getElementById('user-section-label').textContent = userSectionName || fullDept;
-            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;">Loading section records...</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">Loading section records...</td></tr>`;
 
             try {
                 const querySnapshot = await getDocs(collection(db, "incoming_expats"));
                 tbody.innerHTML = '';
+                sectionRecordsCache = {};
 
                 let matchedRecords = [];
                 querySnapshot.forEach(docSnap => {
-                    const rec = docSnap.data();
+                    const rec = { id: docSnap.id, ...docSnap.data() };
                     const recordSection = String(rec.section || "").trim().toUpperCase();
                     const targetSection = userSectionName.toUpperCase();
                     
@@ -867,29 +1030,165 @@
 
                     if (isSectionMatch && isForId) {
                         matchedRecords.push(rec);
+                        sectionRecordsCache[docSnap.id] = rec;
                     }
                 });
 
                 if (matchedRecords.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-light);">No incoming expat records with ID Process Status 'FOR ID' found for your section.</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-light);">No incoming expat records with ID Process Status 'FOR ID' found for your section.</td></tr>`;
                     return;
                 }
 
                 matchedRecords.forEach(rec => {
+                    const regStatus = (rec.registrationStatus === "DONE REGISTER") ? "DONE REGISTER" : "FOR REGISTER";
+                    const badgeClass = (regStatus === "DONE REGISTER") ? "status-approved" : "status-pending";
+                    const registerDateDisplay = rec.registerDate || "N/A";
+
                     tbody.innerHTML += `
                         <tr>
                             <td><strong style="color:var(--primary);">${escapeHtml(rec.passportNumber)}</strong></td>
                             <td>${escapeHtml(rec.section)}</td>
                             <td style="font-weight:bold; text-align:left;">${escapeHtml(rec.name)}</td>
-                            <td><span class="status-badge status-pending">${escapeHtml(rec.idProcessStatus)}</span></td>
+                            <td><span class="status-badge ${badgeClass}">${regStatus}</span></td>
+                            <td>${escapeHtml(registerDateDisplay)}</td>
                             <td>${escapeHtml(rec.drugTest || 'NOT PAID YET')}</td>
+                            <td>
+                                <button class="btn btn-clear" style="padding:4px 10px; font-size:11px;" onclick="openSectionRegisterModal('${rec.id}')">📝 Register Info</button>
+                            </td>
                         </tr>
                     `;
                 });
             } catch (e) {
-                tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--error);">Error loading section records: ${e.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--error);">Error loading section records: ${e.message}</td></tr>`;
             }
         }
+
+        window.openSectionRegisterModal = function(id) {
+            const rec = sectionRecordsCache[id];
+            if (!rec) return;
+
+            document.getElementById('reg-record-id').value = id;
+            document.getElementById('reg-section').value = rec.section || "";
+            document.getElementById('reg-account-name').value = rec.name || "";
+            document.getElementById('reg-passport').value = rec.passportNumber || "";
+            document.getElementById('reg-english-name').value = rec.name || "";
+            document.getElementById('reg-chinese-name').value = rec.name || ""; // fallback if chinese name is part of data
+
+            // Fill existing if edited before
+            document.getElementById('reg-ppt-place').value = rec.pptPlace || "";
+            document.getElementById('reg-ppt-issue').value = rec.pptIssue || "";
+            document.getElementById('reg-ppt-expiry').value = rec.pptExpiry || "";
+            document.getElementById('reg-birthdate').value = rec.birthdate || "";
+            document.getElementById('reg-sex').value = rec.sex || "M";
+            document.getElementById('reg-nationality').value = rec.nationality || "CHINESE";
+            document.getElementById('reg-permanent-address').value = rec.permanentAddress || "";
+            
+            const pa = rec.philAddress || {};
+            document.getElementById('pa-unit').value = pa.unit || "";
+            document.getElementById('pa-building').value = pa.building || "";
+            document.getElementById('pa-street').value = pa.street || "";
+            document.getElementById('pa-subdivision').value = pa.subdivision || "";
+            document.getElementById('pa-barangay').value = pa.barangay || "";
+            document.getElementById('pa-municipality').value = pa.municipality || "";
+            document.getElementById('pa-province').value = pa.province || "";
+            document.getElementById('pa-zipcode').value = pa.zipcode || "";
+
+            document.getElementById('reg-email-addr').value = rec.email || "";
+            document.getElementById('reg-contact').value = rec.contact || "";
+            document.getElementById('reg-civil-status').value = rec.civilStatus || "SINGLE";
+            document.getElementById('reg-spouse').value = rec.spouse || "";
+            document.getElementById('reg-father').value = rec.father || "";
+            document.getElementById('reg-mother').value = rec.mother || "";
+            document.getElementById('reg-height').value = rec.height || "";
+            document.getElementById('reg-weight').value = rec.weight || "";
+            document.getElementById('reg-emerg-contact').value = rec.emergContact || "";
+            document.getElementById('reg-id-name').value = rec.idName || "";
+
+            toggleSpouseField();
+            document.getElementById('section-register-modal').classList.remove('hidden');
+        };
+
+        window.closeSectionRegisterModal = function() {
+            document.getElementById('section-register-modal').classList.add('hidden');
+        };
+
+        window.toggleSpouseField = function() {
+            const status = document.getElementById('reg-civil-status').value;
+            const spouseGroup = document.getElementById('spouse-group');
+            if (status === "MARRIED") {
+                spouseGroup.style.display = "block";
+            } else {
+                spouseGroup.style.display = "none";
+                document.getElementById('reg-spouse').value = "";
+            }
+        };
+
+        window.saveSectionRegistration = async function() {
+            const id = document.getElementById('reg-record-id').value;
+            const pptPlace = document.getElementById('reg-ppt-place').value.trim().toUpperCase();
+            const pptIssue = document.getElementById('reg-ppt-issue').value.trim().toUpperCase();
+            const pptExpiry = document.getElementById('reg-ppt-expiry').value.trim().toUpperCase();
+            const birthdate = document.getElementById('reg-birthdate').value.trim().toUpperCase();
+            const sex = document.getElementById('reg-sex').value;
+            const nationality = document.getElementById('reg-nationality').value;
+            const permanentAddress = document.getElementById('reg-permanent-address').value.trim().toUpperCase();
+            
+            const philAddress = {
+                unit: document.getElementById('pa-unit').value.trim().toUpperCase(),
+                building: document.getElementById('pa-building').value.trim().toUpperCase(),
+                street: document.getElementById('pa-street').value.trim().toUpperCase(),
+                subdivision: document.getElementById('pa-subdivision').value.trim().toUpperCase(),
+                barangay: document.getElementById('pa-barangay').value.trim().toUpperCase(),
+                municipality: document.getElementById('pa-municipality').value.trim().toUpperCase(),
+                province: document.getElementById('pa-province').value.trim().toUpperCase(),
+                zipcode: document.getElementById('pa-zipcode').value.trim().toUpperCase()
+            };
+
+            const email = document.getElementById('reg-email-addr').value.trim().toUpperCase();
+            const contact = document.getElementById('reg-contact').value.trim().toUpperCase();
+            const civilStatus = document.getElementById('reg-civil-status').value;
+            const spouse = document.getElementById('reg-spouse').value.trim().toUpperCase();
+            const father = document.getElementById('reg-father').value.trim().toUpperCase();
+            const mother = document.getElementById('reg-mother').value.trim().toUpperCase();
+            const height = document.getElementById('reg-height').value.trim().toUpperCase();
+            const weight = document.getElementById('reg-weight').value.trim().toUpperCase();
+            const emergContact = document.getElementById('reg-emerg-contact').value.trim().toUpperCase();
+            const idName = document.getElementById('reg-id-name').value.trim().toUpperCase();
+
+            const registerDate = new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+
+            try {
+                const docRef = doc(db, "incoming_expats", id);
+                await updateDoc(docRef, {
+                    pptPlace,
+                    pptIssue,
+                    pptExpiry,
+                    birthdate,
+                    sex,
+                    nationality,
+                    permanentAddress,
+                    philAddress,
+                    email,
+                    contact,
+                    civilStatus,
+                    spouse,
+                    father,
+                    mother,
+                    height,
+                    weight,
+                    emergContact,
+                    idName,
+                    registrationStatus: "DONE REGISTER",
+                    registerDate: registerDate
+                });
+
+                closeSectionRegisterModal();
+                loadSectionPortalTable();
+                alert("Employee information successfully registered and marked as DONE REGISTER!");
+            } catch (e) {
+                alert("Error saving registration: " + e.message);
+            }
+        };
 
         window.openExpatEditModal = function(id) {
             const rec = expatRecordsCache[id];
@@ -915,15 +1214,15 @@
 
         window.saveExpatEditForm = async function() {
             const id = document.getElementById('edit-expat-id').value;
-            const passportNumber = document.getElementById('edit-expat-passport').value.trim();
-            const section = document.getElementById('edit-expat-section').value.trim();
-            const name = document.getElementById('edit-expat-name').value.trim();
+            const passportNumber = document.getElementById('edit-expat-passport').value.trim().toUpperCase();
+            const section = document.getElementById('edit-expat-section').value.trim().toUpperCase();
+            const name = document.getElementById('edit-expat-name').value.trim().toUpperCase();
             const idProcessStatus = document.getElementById('edit-expat-id-status').value;
             const uniformSize = document.getElementById('edit-expat-uniform-size').value;
             const laceStatus = document.getElementById('edit-expat-lace').checked;
             const uniformStatus = document.getElementById('edit-expat-uniform').checked;
             const drugTest = document.getElementById('edit-expat-drug-test').value;
-            const remarks = document.getElementById('edit-expat-remarks').value.trim();
+            const remarks = document.getElementById('edit-expat-remarks').value.trim().toUpperCase();
 
             if (!name || !passportNumber) {
                 alert("Name and Passport Number cannot be empty.");
@@ -984,7 +1283,6 @@
                 }
 
                 const countsMap = {};
-
                 const getValue = (row, possibleKeys) => {
                     for (let k of Object.keys(row)) {
                         for (let p of possibleKeys) {
@@ -997,7 +1295,6 @@
                 parsedRows.forEach(row => {
                     let office = String(getValue(row, ["Office", "PREV. OFFICE", "Previous Office", "Section", "Department"])).trim();
                     if (!office || office.toLowerCase() === "undefined") office = "Unassigned / General";
-
                     let status = String(getValue(row, ["Status", "LAST STATUS", "Last Status", "Employment Status"])).trim().toLowerCase();
 
                     if (status.includes("active") || status.includes("employed") || status.includes("duty") || status.includes("normal") || (!status.includes("leave") && !status.includes("resigned") && !status.includes("block") && !status.includes("term"))) {
@@ -1012,7 +1309,6 @@
                 const activeUser = JSON.parse(sessionStorage.getItem('active_user') || '{}');
                 const uploaderName = activeUser.name || activeUser.email || "System User";
                 const timestamp = new Date().toLocaleString();
-
                 const metaData = { fileName: fileNames, uploader: uploaderName, timestamp: timestamp };
 
                 await setDoc(doc(db, "admin_ops_analytics", "latest_counts"), { data: countsMap, meta: metaData });
@@ -1081,10 +1377,7 @@
         function renderOpsTable(countsMap) {
             const tbodyEl = document.getElementById('ops-summary-table-body');
             tbodyEl.innerHTML = "";
-
-            let totalActive = 0;
-            let totalLeave = 0;
-            let totalGrand = 0;
+            let totalActive = 0, totalLeave = 0, totalGrand = 0;
 
             Object.keys(countsMap).sort().forEach(office => {
                 const item = countsMap[office];
@@ -1229,7 +1522,6 @@
             const results = globalEmployeeRecords.filter(row => {
                 const name = String(getValue(row, ["English Name", "PPT NAME", "Name", "Full Name"])).toUpperCase();
                 const ppt = String(getValue(row, ["Passport", "Passport No", "PPT NO", "PPT NO."])).toUpperCase();
-                
                 const bdayRaw = getValue(row, ["Birthday", "Birthdate", "Birth Date"]);
                 const formattedRowBday = formatDate(bdayRaw).toLowerCase();
                 const bdayString = String(bdayRaw).trim().toLowerCase();
@@ -1237,34 +1529,29 @@
                 let matches = true;
                 if (nameQuery && !name.includes(nameQuery)) matches = false;
                 if (passportQuery && !ppt.includes(passportQuery)) matches = false;
-                
                 if (bdayQuery) {
                     if (bdayString !== bdayQuery && formattedRowBday !== bdayQuery && !bdayString.includes(bdayQuery)) {
                         matches = false;
                     }
                 }
-
                 return matches;
             });
 
             if (results.length === 0) {
                 const inputName = nameQuery || "N/A";
                 const inputPassport = passportQuery || "N/A";
-                
-                let formattedBdayOutput = "N/A";
                 let ageStatusOutput = "N/A";
 
                 if (bdayQuery) {
                     const parsedBday = new Date(bdayQuery);
                     if (!isNaN(parsedBday.getTime())) {
-                        formattedBdayOutput = formatDate(parsedBday);
+                        const formattedBdayOutput = formatDate(parsedBday);
                         const today = new Date();
                         let age = today.getFullYear() - parsedBday.getFullYear();
                         const m = today.getMonth() - parsedBday.getMonth();
                         if (m < 0 || (m === 0 && today.getDate() < parsedBday.getDate())) age--;
                         ageStatusOutput = (age < 21 ? "Underage" : "Legal Age") + ` (DOB: ${formattedBdayOutput})`;
                     } else {
-                        formattedBdayOutput = bdayQuery;
                         ageStatusOutput = `N/A (DOB: ${bdayQuery})`;
                     }
                 }
@@ -1317,7 +1604,6 @@ AGE STATUS: ${ageStatusOutput}`;
                 }
 
                 const formattedStatusDate = formatDate(statusDateRaw);
-
                 const cardText = 
 `PPT NAME: ${pptName}
 PPT NO.: ${pptNo}
@@ -1382,10 +1668,7 @@ AGE STATUS: ${ageStatus}`;
                 }
 
                 let logs = [];
-                querySnapshot.forEach(doc => {
-                    logs.push(doc.data());
-                });
-
+                querySnapshot.forEach(doc => { logs.push(doc.data()); });
                 logs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
                 logs.forEach(log => {
@@ -1437,9 +1720,7 @@ AGE STATUS: ${ageStatus}`;
                 const assignedDept = isSuper ? "Admin-Ops Department" : "Unassigned";
 
                 await addDoc(collection(db, "users"), { 
-                    name, 
-                    email, 
-                    password, 
+                    name, email, password, 
                     status: assignedStatus,
                     position: assignedPosition, 
                     department: assignedDept,
@@ -1485,7 +1766,6 @@ AGE STATUS: ${ageStatus}`;
             document.getElementById('section-dashboard').classList.remove('hidden');
             
             document.getElementById('user-display-name').textContent = user.name;
-            
             const userStatus = user.status || "Pending";
             const userPos = user.position || "Unassigned";
             const userDept = user.department || "Unassigned";
@@ -1585,7 +1865,6 @@ AGE STATUS: ${ageStatus}`;
         window.updatePositionDropdown = function(selectedDept, currentPosition = "") {
             const posSelect = document.getElementById('edit-user-position');
             posSelect.innerHTML = "";
-            
             const positions = departmentPositions[selectedDept] || ["Unassigned", "Registered Rep."];
             const activeUser = JSON.parse(sessionStorage.getItem('active_user') || '{}');
             const isSuper = activeUser.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase() || activeUser.position === "Super Account";
@@ -1595,32 +1874,20 @@ AGE STATUS: ${ageStatus}`;
                 const opt = document.createElement('option');
                 opt.value = pos;
                 opt.textContent = pos;
-                if (pos === currentPosition) {
-                    opt.selected = true;
-                }
+                if (pos === currentPosition) opt.selected = true;
                 posSelect.appendChild(opt);
             });
-
-            if (currentPosition && !Array.from(posSelect.options).some(o => o.value === currentPosition)) {
-                const opt = document.createElement('option');
-                opt.value = currentPosition;
-                opt.textContent = currentPosition;
-                opt.selected = true;
-                posSelect.insertBefore(opt, posSelect.firstChild);
-            }
         };
 
         window.onDepartmentChange = function() {
             const dept = document.getElementById('edit-user-department').value;
             const sectionInputGroup = document.getElementById('section-input-group');
-            
             if (dept === "Section") {
                 sectionInputGroup.classList.remove('hidden');
             } else {
                 sectionInputGroup.classList.add('hidden');
                 document.getElementById('edit-section-text').value = "";
             }
-
             window.updatePositionDropdown(dept);
         };
 
@@ -1631,14 +1898,12 @@ AGE STATUS: ${ageStatus}`;
             
             let baseDept = fullDepartment;
             let sectionValue = "";
-
             if (fullDepartment && fullDepartment.startsWith("Section - ")) {
                 baseDept = "Section";
                 sectionValue = fullDepartment.replace("Section - ", "");
             }
 
             document.getElementById('edit-user-department').value = baseDept;
-            
             const sectionInputGroup = document.getElementById('section-input-group');
             if (baseDept === "Section") {
                 sectionInputGroup.classList.remove('hidden');
@@ -1649,7 +1914,6 @@ AGE STATUS: ${ageStatus}`;
             }
 
             window.updatePositionDropdown(baseDept, position);
-
             document.getElementById('approval-form-container').classList.remove('hidden');
             window.scrollTo({ top: 0, behavior: 'smooth' });
         };
@@ -1683,10 +1947,8 @@ AGE STATUS: ${ageStatus}`;
             try {
                 const userRef = doc(db, "users", userId);
                 await updateDoc(userRef, { 
-                    name: newName, 
-                    status: newStatus,
-                    position: newPosition, 
-                    department: finalDepartment 
+                    name: newName, status: newStatus,
+                    position: newPosition, department: finalDepartment 
                 });
                 alert("User account updated successfully!");
                 document.getElementById('approval-form-container').classList.add('hidden');
