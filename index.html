@@ -1048,10 +1048,10 @@
             return `${day}-${month}-${year}`;
         }
 
-        // Standardized timestamp format: mm/d/yyyy, h:mm:ss PM
+        // Standardized timestamp format: 11/10/2026, 5:58:37 PM (MM/DD/YYYY, h:mm:ss A)
         function formatDateTimeFull(d = new Date()) {
-            const month = d.getMonth() + 1;
-            const day = d.getDate();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
             const year = d.getFullYear();
             
             let hours = d.getHours();
@@ -1331,7 +1331,6 @@ ID NAME: ${rec.idName || "N/A"}`;
                 }
 
                 matchedRecords.forEach(rec => {
-                    // Section team sees "DONE REG." even if status was updated by Admin-Ops to "COMPLETE TMS REG."
                     const regStatus = (rec.registrationStatus === "DONE REGISTER" || rec.registrationStatus === "DONE REG." || rec.registrationStatus === "COMPLETE TMS REGISTRATION" || rec.registrationStatus === "COMPLETE TMS REG.") ? "DONE REG." : "FOR REG.";
                     const badgeClass = (regStatus === "DONE REG.") ? "status-approved" : "status-pending";
                     const registerDateDisplay = rec.registerDate || "N/A";
@@ -1446,7 +1445,7 @@ ID NAME: ${rec.idName || "N/A"}`;
             const emergContact = document.getElementById('reg-emerg-contact').value.trim().toUpperCase();
             const idName = document.getElementById('reg-id-name').value.trim().toUpperCase();
 
-            // Store timestamp with exact format: mm/d/yyyy, h:mm:ss PM
+            // Store timestamp with exact format: MM/DD/YYYY, h:mm:ss A
             const registerDate = formatDateTimeFull();
 
             try {
