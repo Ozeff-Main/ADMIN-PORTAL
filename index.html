@@ -240,6 +240,15 @@
         .val-leave { color: #d97706; font-weight: bold; }
         .val-total { color: var(--primary); font-weight: bold; }
 
+        .remark-tag {
+            background-color: #e0f2fe;
+            color: #0369a1;
+            padding: 3px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            display: inline-block;
+        }
+
         /* Modal Overlay for Edit View */
         .modal-overlay {
             position: fixed;
@@ -835,7 +844,6 @@
             const activeUser = JSON.parse(sessionStorage.getItem('active_user') || '{}');
             const fullDept = activeUser.department || "";
             
-            // Extract section name (e.g. "Section - 11A" -> "11A" or matching office name)
             let userSectionName = "";
             if (fullDept.startsWith("Section - ")) {
                 userSectionName = fullDept.replace("Section - ", "").trim();
@@ -854,7 +862,6 @@
                     const recordSection = String(rec.section || "").trim().toUpperCase();
                     const targetSection = userSectionName.toUpperCase();
                     
-                    // Match section and ID Process Status equal to "FOR ID"
                     const isSectionMatch = recordSection === targetSection || recordSection.includes(targetSection);
                     const isForId = String(rec.idProcessStatus || "").trim().toUpperCase() === "FOR ID";
 
