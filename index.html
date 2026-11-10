@@ -240,15 +240,6 @@
         .val-leave { color: #d97706; font-weight: bold; }
         .val-total { color: var(--primary); font-weight: bold; }
 
-        .remark-tag {
-            background-color: #e0f2fe;
-            color: #0369a1;
-            padding: 3px 6px;
-            border-radius: 4px;
-            font-size: 11px;
-            display: inline-block;
-        }
-
         /* Modal Overlay for Edit View */
         .modal-overlay {
             position: fixed;
@@ -283,6 +274,7 @@
         <button class="side-btn active" onclick="switchMainView('portal')">🔑 Account Portal</button>
         <button id="nav-ops-dashboard" class="side-btn hidden" onclick="switchMainView('ops-dashboard')">📊 Admin-Ops Analytics</button>
         <button id="nav-incoming-expat" class="side-btn hidden" onclick="switchMainView('incoming-expat')">✈️ Incoming Expat Employee</button>
+        <button id="nav-section-portal" class="side-btn hidden" onclick="switchMainView('section-portal')">🏢 Section Department Portal</button>
         <button id="nav-tms" class="side-btn hidden" onclick="switchMainView('tms')">📋 TMS Record Search</button>
         <button id="nav-history" class="side-btn hidden" onclick="switchMainView('history')">📜 Copied History Logs</button>
     </div>
@@ -471,7 +463,32 @@
             </div>
         </div>
 
-        <!-- VIEW 4: PASSPORT & TMS RECORD SEARCH (Protected) -->
+        <!-- VIEW 4: SECTION DEPARTMENT PORTAL (For Section accounts where ID Process = FOR ID) -->
+        <div id="view-section-portal" class="container hidden">
+            <div style="text-align: center; margin-bottom: 20px;">
+                <h2 style="margin-top: 10px;">🏢 Section Department Portal</h2>
+                <p style="color: var(--text-light);">Incoming expat records pending ID processing (<span id="user-section-label" style="font-weight:bold; color:var(--primary);"></span>).</p>
+            </div>
+
+            <div style="overflow-x: auto; margin-top: 15px;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Passport Number</th>
+                            <th>Section</th>
+                            <th>Name</th>
+                            <th>ID Process</th>
+                            <th>Drug Test</th>
+                        </tr>
+                    </thead>
+                    <tbody id="section-portal-table-body">
+                        <tr><td colspan="5" style="text-align:center;">Loading section records...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- VIEW 5: PASSPORT & TMS RECORD SEARCH (Protected) -->
         <div id="view-tms" class="container hidden">
             <div style="text-align: center; margin-bottom: 20px;">
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
@@ -526,7 +543,7 @@
             <div id="tms-results-container"></div>
         </div>
 
-        <!-- VIEW 5: COPIED HISTORY LOGS -->
+        <!-- VIEW 6: COPIED HISTORY LOGS -->
         <div id="view-history" class="container hidden">
             <h2>📜 Shared Copied History Logs</h2>
             <p style="text-align: center; color: var(--text-light);">Here are all the employee records copied by any user across the system.</p>
@@ -668,6 +685,7 @@
             document.getElementById('view-portal').classList.add('hidden');
             document.getElementById('view-ops-dashboard').classList.add('hidden');
             document.getElementById('view-incoming-expat').classList.add('hidden');
+            document.getElementById('view-section-portal').classList.add('hidden');
             document.getElementById('view-tms').classList.add('hidden');
             document.getElementById('view-history').classList.add('hidden');
 
@@ -682,6 +700,10 @@
                 document.getElementById('view-incoming-expat').classList.remove('hidden');
                 event.currentTarget.classList.add('active');
                 loadIncomingExpatTable();
+            } else if (viewName === 'section-portal') {
+                document.getElementById('view-section-portal').classList.remove('hidden');
+                event.currentTarget.classList.add('active');
+                loadSectionPortalTable();
             } else if (viewName === 'tms') {
                 document.getElementById('view-tms').classList.remove('hidden');
                 event.currentTarget.classList.add('active');
@@ -804,6 +826,61 @@
                 });
             } catch (e) {
                 tbody.innerHTML = `<tr><td colspan="12" style="text-align:center; color:var(--error);">Error loading records: ${e.message}</td></tr>`;
+            }
+        }
+
+        /* SECTION DEPARTMENT PORTAL LOGIC */
+        async function loadSectionPortalTable() {
+            const tbody = document.getElementById('section-portal-table-body');
+            const activeUser = JSON.parse(sessionStorage.getItem('active_user') || '{}');
+            const fullDept = activeUser.department || "";
+            
+            // Extract section name (e.g. "Section - 11A" -> "11A" or matching office name)
+            let userSectionName = "";
+            if (fullDept.startsWith("Section - ")) {
+                userSectionName = fullDept.replace("Section - ", "").trim();
+            }
+
+            document.getElementById('user-section-label').textContent = userSectionName || fullDept;
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;">Loading section records...</td></tr>`;
+
+            try {
+                const querySnapshot = await getDocs(collection(db, "incoming_expats"));
+                tbody.innerHTML = '';
+
+                let matchedRecords = [];
+                querySnapshot.forEach(docSnap => {
+                    const rec = docSnap.data();
+                    const recordSection = String(rec.section || "").trim().toUpperCase();
+                    const targetSection = userSectionName.toUpperCase();
+                    
+                    // Match section and ID Process Status equal to "FOR ID"
+                    const isSectionMatch = recordSection === targetSection || recordSection.includes(targetSection);
+                    const isForId = String(rec.idProcessStatus || "").trim().toUpperCase() === "FOR ID";
+
+                    if (isSectionMatch && isForId) {
+                        matchedRecords.push(rec);
+                    }
+                });
+
+                if (matchedRecords.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-light);">No incoming expat records with ID Process Status 'FOR ID' found for your section.</td></tr>`;
+                    return;
+                }
+
+                matchedRecords.forEach(rec => {
+                    tbody.innerHTML += `
+                        <tr>
+                            <td><strong style="color:var(--primary);">${escapeHtml(rec.passportNumber)}</strong></td>
+                            <td>${escapeHtml(rec.section)}</td>
+                            <td style="font-weight:bold; text-align:left;">${escapeHtml(rec.name)}</td>
+                            <td><span class="status-badge status-pending">${escapeHtml(rec.idProcessStatus)}</span></td>
+                            <td>${escapeHtml(rec.drugTest || 'NOT PAID YET')}</td>
+                        </tr>
+                    `;
+                });
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--error);">Error loading section records: ${e.message}</td></tr>`;
             }
         }
 
@@ -1415,21 +1492,30 @@ AGE STATUS: ${ageStatus}`;
 
             const isSuper = user.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase() || userPos === "Super Account";
             const isAdminOps = userPos.includes("Admin-Ops") || userPos === "Admin Manager" || userDept === "Admin-Ops Department";
+            const isSectionAccount = userDept.startsWith("Section - ");
             const isApprovedUser = userStatus === "Approved" && userPos !== "Unassigned";
 
             if (isSuper || isAdminOps) {
                 document.getElementById('nav-ops-dashboard').classList.remove('hidden');
                 document.getElementById('nav-incoming-expat').classList.remove('hidden');
+                document.getElementById('nav-section-portal').classList.add('hidden');
                 document.getElementById('nav-tms').classList.remove('hidden');
                 document.getElementById('nav-history').classList.remove('hidden');
+            } else if (isSectionAccount) {
+                document.getElementById('nav-ops-dashboard').classList.add('hidden');
+                document.getElementById('nav-incoming-expat').classList.add('hidden');
+                document.getElementById('nav-section-portal').classList.remove('hidden');
+                document.getElementById('nav-tms').classList.add('hidden');
+                document.getElementById('nav-history').classList.add('hidden');
             } else {
                 document.getElementById('nav-ops-dashboard').classList.add('hidden');
                 document.getElementById('nav-incoming-expat').classList.add('hidden');
+                document.getElementById('nav-section-portal').classList.add('hidden');
                 document.getElementById('nav-tms').classList.add('hidden');
                 document.getElementById('nav-history').classList.add('hidden');
             }
 
-            if (!isApprovedUser && !isSuper && !isAdminOps) {
+            if (!isApprovedUser && !isSuper && !isAdminOps && !isSectionAccount) {
                 document.getElementById('pending-notice').classList.remove('hidden');
             } else {
                 document.getElementById('pending-notice').classList.add('hidden');
@@ -1624,6 +1710,7 @@ AGE STATUS: ${ageStatus}`;
             document.getElementById('sidebar-panel').classList.add('hidden');
             document.getElementById('view-ops-dashboard').classList.add('hidden');
             document.getElementById('view-incoming-expat').classList.add('hidden');
+            document.getElementById('view-section-portal').classList.add('hidden');
             document.getElementById('view-tms').classList.add('hidden');
             document.getElementById('view-history').classList.add('hidden');
             document.getElementById('view-portal').classList.remove('hidden');
