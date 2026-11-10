@@ -242,6 +242,7 @@
         }
         .status-approved { background-color: #d1fae5; color: #065f46; }
         .status-pending { background-color: #fef3c7; color: #92400e; }
+        .status-complete-tms { background-color: #059669; color: #ffffff; }
         
         .val-active { color: #059669; font-weight: bold; }
         .val-leave { color: #d97706; font-weight: bold; }
@@ -677,9 +678,12 @@
     <!-- ADMIN-OPS VIEW REGISTERED EMPLOYEE INFO MODAL -->
     <div id="admin-view-registered-modal" class="modal-overlay hidden">
         <div class="modal-content" style="max-width: 850px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom: 2px solid var(--border); padding-bottom:12px;">
                 <h3 style="margin:0; color:var(--primary);">👁️ Registered Employee Information</h3>
-                <button class="badge-copy" onclick="copyRegisteredEmployeeInfo()">📋 Copy All Registered Data</button>
+                <div style="display:flex; gap:10px;">
+                    <button id="admin-complete-tms-btn" class="btn btn-clear" onclick="markCurrentRecordCompleteTMS()">✅ Mark Complete TMS Registration</button>
+                    <button class="badge-copy" onclick="copyRegisteredEmployeeInfo()">📋 Copy All Registered Data</button>
+                </div>
             </div>
 
             <div class="section-grid">
@@ -1096,11 +1100,20 @@
                 records.forEach(rec => {
                     const remarkDisplay = rec.remarks ? `<div class="remark-tag">💬 ${escapeHtml(rec.remarks)}</div>` : '<span style="color:#94a3b8;">-</span>';
                     const regStatus = rec.registrationStatus || "PENDING";
-                    const regStatusBadge = (regStatus === "DONE REGISTER") ? `<span class="status-badge status-approved">DONE REGISTER</span>` : `<span class="status-badge status-pending">PENDING</span>`;
+                    
+                    let regStatusBadge = `<span class="status-badge status-pending">PENDING</span>`;
+                    if (regStatus === "COMPLETE TMS REGISTRATION") {
+                        regStatusBadge = `<span class="status-badge status-complete-tms">COMPLETE TMS REGISTRATION</span>`;
+                    } else if (regStatus === "DONE REGISTER") {
+                        regStatusBadge = `<span class="status-badge status-approved">DONE REGISTER</span>`;
+                    }
 
                     let actionHtml = `<button class="btn btn-clear" style="padding:3px 8px; font-size:11px;" onclick="openExpatEditModal('${rec.id}')">✏️ Edit</button>`;
-                    if (regStatus === "DONE REGISTER") {
+                    if (regStatus === "DONE REGISTER" || regStatus === "COMPLETE TMS REGISTRATION") {
                         actionHtml += ` <button class="btn" style="padding:3px 8px; font-size:11px; background-color:#7c3aed;" onclick="openAdminViewRegisteredModal('${rec.id}')">👁️ View</button>`;
+                    }
+                    if (regStatus === "DONE REGISTER") {
+                        actionHtml += ` <button class="btn btn-clear" style="padding:3px 8px; font-size:11px; background-color:#059669;" onclick="markRecordCompleteTMS('${rec.id}')">✅ Complete TMS</button>`;
                     }
                     actionHtml += ` <button class="btn btn-danger" style="padding:3px 8px; font-size:11px;" onclick="deleteExpatRecord('${rec.id}')">Delete</button>`;
 
@@ -1125,6 +1138,30 @@
                 tbody.innerHTML = `<tr><td colspan="12" style="text-align:center; color:var(--error);">Error loading records: ${e.message}</td></tr>`;
             }
         }
+
+        window.markRecordCompleteTMS = async function(id) {
+            if (!confirm("Are you sure you want to mark this employee registration as Complete TMS Registration?")) return;
+            try {
+                const docRef = doc(db, "incoming_expats", id);
+                await updateDoc(docRef, {
+                    registrationStatus: "COMPLETE TMS REGISTRATION"
+                });
+                alert("Status successfully updated to COMPLETE TMS REGISTRATION!");
+                loadIncomingExpatTable();
+                if (!document.getElementById('admin-view-registered-modal').classList.contains('hidden')) {
+                    closeAdminViewModal();
+                }
+            } catch (e) {
+                alert("Error updating status: " + e.message);
+            }
+        };
+
+        window.markCurrentRecordCompleteTMS = function() {
+            const rec = window.currentViewedRecordForCopy;
+            if (rec && rec.id) {
+                markRecordCompleteTMS(rec.id);
+            }
+        };
 
         window.openAdminViewRegisteredModal = function(id) {
             const rec = expatRecordsCache[id];
@@ -1171,6 +1208,13 @@
             document.getElementById('v-weight').value = rec.weight || "";
             document.getElementById('v-emerg-contact').value = rec.emergContact || "";
             document.getElementById('v-id-name').value = rec.idName || "";
+
+            const completeBtn = document.getElementById('admin-complete-tms-btn');
+            if (rec.registrationStatus === "COMPLETE TMS REGISTRATION") {
+                completeBtn.style.display = "none";
+            } else {
+                completeBtn.style.display = "inline-block";
+            }
 
             window.currentViewedRecordForCopy = rec;
             document.getElementById('admin-view-registered-modal').classList.remove('hidden');
@@ -1265,7 +1309,8 @@ ID NAME: ${rec.idName || "N/A"}`;
                 }
 
                 matchedRecords.forEach(rec => {
-                    const regStatus = (rec.registrationStatus === "DONE REGISTER") ? "DONE REGISTER" : "FOR REGISTER";
+                    // Section team only sees "DONE REGISTER" even if status is "COMPLETE TMS REGISTRATION"
+                    const regStatus = (rec.registrationStatus === "DONE REGISTER" || rec.registrationStatus === "COMPLETE TMS REGISTRATION") ? "DONE REGISTER" : "FOR REGISTER";
                     const badgeClass = (regStatus === "DONE REGISTER") ? "status-approved" : "status-pending";
                     const registerDateDisplay = rec.registerDate || "N/A";
 
