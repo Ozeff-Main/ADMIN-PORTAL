@@ -473,9 +473,9 @@
                             <th>Name</th>
                             <th>TMS Status</th>
                             <th>ID Process Status</th>
+                            <th>Reg. Status</th>
+                            <th>Register Date</th>
                             <th>Uniform Size</th>
-                            <th>Lace Status</th>
-                            <th>Uniform Status</th>
                             <th>Drug Test</th>
                             <th>Remarks</th>
                             <th>Action</th>
@@ -674,6 +674,127 @@
         </div>
     </div>
 
+    <!-- ADMIN-OPS VIEW REGISTERED EMPLOYEE INFO MODAL -->
+    <div id="admin-view-registered-modal" class="modal-overlay hidden">
+        <div class="modal-content" style="max-width: 850px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <h3 style="margin:0; color:var(--primary);">👁️ Registered Employee Information</h3>
+                <button class="badge-copy" onclick="copyRegisteredEmployeeInfo()">📋 Copy All Registered Data</button>
+            </div>
+
+            <div class="section-grid">
+                <div class="form-group">
+                    <label>Section</label>
+                    <input type="text" id="v-section" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Account Name / Emergency Contact Name</label>
+                    <input type="text" id="v-account-name" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Passport Number</label>
+                    <input type="text" id="v-passport" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Passport Place of Issuance</label>
+                    <input type="text" id="v-ppt-place" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Passport Issue Date</label>
+                    <input type="text" id="v-ppt-issue" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Passport Expiry Date</label>
+                    <input type="text" id="v-ppt-expiry" readonly>
+                </div>
+                <div class="form-group">
+                    <label>English Name</label>
+                    <input type="text" id="v-english-name" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Chinese Name</label>
+                    <input type="text" id="v-chinese-name" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Birthdate</label>
+                    <input type="text" id="v-birthdate" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Sex</label>
+                    <input type="text" id="v-sex" readonly>
+                </div>
+                <div class="form-group section-grid-full">
+                    <label>Nationality</label>
+                    <input type="text" id="v-nationality" readonly>
+                </div>
+                <div class="form-group section-grid-full">
+                    <label>Permanent Address</label>
+                    <textarea id="v-permanent-address" rows="2" readonly></textarea>
+                </div>
+
+                <!-- PHILIPPINE ADDRESS SUB-FIELDS -->
+                <div class="form-group section-grid-full" style="background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
+                    <label style="color: var(--primary); margin-bottom: 8px; font-size: 14px;">Philippine Address Details:</label>
+                    <div class="section-grid">
+                        <input type="text" id="v-pa-unit" placeholder="Unit Room/Floor/House no." readonly style="margin-bottom:10px;">
+                        <input type="text" id="v-pa-building" placeholder="Building name" readonly style="margin-bottom:10px;">
+                        <input type="text" id="v-pa-street" placeholder="Street Name" readonly style="margin-bottom:10px;">
+                        <input type="text" id="v-pa-subdivision" placeholder="Subdivision" readonly style="margin-bottom:10px;">
+                        <input type="text" id="v-pa-barangay" placeholder="Barangay" readonly style="margin-bottom:10px;">
+                        <input type="text" id="v-pa-municipality" placeholder="Municipality" readonly style="margin-bottom:10px;">
+                        <input type="text" id="v-pa-province" placeholder="Province/State/Country" readonly>
+                        <input type="text" id="v-pa-zipcode" placeholder="Zipcode" readonly>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Email Address</label>
+                    <input type="text" id="v-email-addr" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Contact No.</label>
+                    <input type="text" id="v-contact" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Civil Status</label>
+                    <input type="text" id="v-civil-status" readonly>
+                </div>
+                <div class="form-group" id="v-spouse-group" style="display: none;">
+                    <label>Spouse Name</label>
+                    <input type="text" id="v-spouse" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Father Name</label>
+                    <input type="text" id="v-father" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Mother Name</label>
+                    <input type="text" id="v-mother" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Height</label>
+                    <input type="text" id="v-height" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Weight</label>
+                    <input type="text" id="v-weight" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Emergency Contact No.</label>
+                    <input type="text" id="v-emerg-contact" readonly>
+                </div>
+                <div class="form-group">
+                    <label>ID Name</label>
+                    <input type="text" id="v-id-name" readonly>
+                </div>
+            </div>
+
+            <div style="margin-top:25px; text-align:right;">
+                <button class="btn" onclick="closeAdminViewModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
     <!-- SECTION EMPLOYEE REGISTRATION MODAL -->
     <div id="section-register-modal" class="modal-overlay hidden">
         <div class="modal-content" style="max-width: 850px;">
@@ -695,7 +816,7 @@
                 </div>
                 <div class="form-group">
                     <label>Passport Place of Issuance</label>
-                    <input type="text" id="reg-ppt-place" placeholder="E.g. MANILA">
+                    <input type="text" id="reg-ppt-place" placeholder="E.G. MANILA">
                 </div>
                 <div class="form-group">
                     <label>Passport Issue Date (MM/DD/YYYY)</label>
@@ -974,6 +1095,14 @@
 
                 records.forEach(rec => {
                     const remarkDisplay = rec.remarks ? `<div class="remark-tag">💬 ${escapeHtml(rec.remarks)}</div>` : '<span style="color:#94a3b8;">-</span>';
+                    const regStatus = rec.registrationStatus || "PENDING";
+                    const regStatusBadge = (regStatus === "DONE REGISTER") ? `<span class="status-badge status-approved">DONE REGISTER</span>` : `<span class="status-badge status-pending">PENDING</span>`;
+
+                    let actionHtml = `<button class="btn btn-clear" style="padding:3px 8px; font-size:11px;" onclick="openExpatEditModal('${rec.id}')">✏️ Edit</button>`;
+                    if (regStatus === "DONE REGISTER") {
+                        actionHtml += ` <button class="btn" style="padding:3px 8px; font-size:11px; background-color:#7c3aed;" onclick="openAdminViewRegisteredModal('${rec.id}')">👁️ View</button>`;
+                    }
+                    actionHtml += ` <button class="btn btn-danger" style="padding:3px 8px; font-size:11px;" onclick="deleteExpatRecord('${rec.id}')">Delete</button>`;
 
                     tbody.innerHTML += `
                         <tr>
@@ -983,15 +1112,12 @@
                             <td style="font-weight:bold; text-align:left;">${escapeHtml(rec.name)}</td>
                             <td><span class="status-badge ${rec.tmsRecordStatus === 'YES' ? 'status-approved' : 'status-pending'}">${rec.tmsRecordStatus}</span></td>
                             <td><strong>${escapeHtml(rec.idProcessStatus || 'CHECKING')}</strong></td>
+                            <td>${regStatusBadge}</td>
+                            <td>${escapeHtml(rec.registerDate || 'N/A')}</td>
                             <td>${escapeHtml(rec.uniformSize || 'M')}</td>
-                            <td>${rec.laceStatus ? '✅' : '❌'}</td>
-                            <td>${rec.uniformStatus ? '✅' : '❌'}</td>
                             <td>${escapeHtml(rec.drugTest || 'NOT PAID YET')}</td>
                             <td>${remarkDisplay}</td>
-                            <td>
-                                <button class="btn btn-clear" style="padding:3px 8px; font-size:11px;" onclick="openExpatEditModal('${rec.id}')">✏️ Edit</button>
-                                <button class="btn btn-danger" style="padding:3px 8px; font-size:11px;" onclick="deleteExpatRecord('${rec.id}')">Delete</button>
-                            </td>
+                            <td>${actionHtml}</td>
                         </tr>
                     `;
                 });
@@ -999,6 +1125,105 @@
                 tbody.innerHTML = `<tr><td colspan="12" style="text-align:center; color:var(--error);">Error loading records: ${e.message}</td></tr>`;
             }
         }
+
+        window.openAdminViewRegisteredModal = function(id) {
+            const rec = expatRecordsCache[id];
+            if (!rec) return;
+
+            document.getElementById('v-section').value = rec.section || "";
+            document.getElementById('v-account-name').value = rec.name || "";
+            document.getElementById('v-passport').value = rec.passportNumber || "";
+            document.getElementById('v-ppt-place').value = rec.pptPlace || "";
+            document.getElementById('v-ppt-issue').value = rec.pptIssue || "";
+            document.getElementById('v-ppt-expiry').value = rec.pptExpiry || "";
+            document.getElementById('v-english-name').value = rec.name || "";
+            document.getElementById('v-chinese-name').value = rec.name || "";
+            document.getElementById('v-birthdate').value = rec.birthdate || "";
+            document.getElementById('v-sex').value = rec.sex || "";
+            document.getElementById('v-nationality').value = rec.nationality || "";
+            document.getElementById('v-permanent-address').value = rec.permanentAddress || "";
+
+            const pa = rec.philAddress || {};
+            document.getElementById('v-pa-unit').value = pa.unit || "";
+            document.getElementById('v-pa-building').value = pa.building || "";
+            document.getElementById('v-pa-street').value = pa.street || "";
+            document.getElementById('v-pa-subdivision').value = pa.subdivision || "";
+            document.getElementById('v-pa-barangay').value = pa.barangay || "";
+            document.getElementById('v-pa-municipality').value = pa.municipality || "";
+            document.getElementById('v-pa-province').value = pa.province || "";
+            document.getElementById('v-pa-zipcode').value = pa.zipcode || "";
+
+            document.getElementById('v-email-addr').value = rec.email || "";
+            document.getElementById('v-contact').value = rec.contact || "";
+            document.getElementById('v-civil-status').value = rec.civilStatus || "";
+            
+            const spouseGroup = document.getElementById('v-spouse-group');
+            if (rec.civilStatus === "MARRIED") {
+                spouseGroup.style.display = "block";
+                document.getElementById('v-spouse').value = rec.spouse || "";
+            } else {
+                spouseGroup.style.display = "none";
+            }
+
+            document.getElementById('v-father').value = rec.father || "";
+            document.getElementById('v-mother').value = rec.mother || "";
+            document.getElementById('v-height').value = rec.height || "";
+            document.getElementById('v-weight').value = rec.weight || "";
+            document.getElementById('v-emerg-contact').value = rec.emergContact || "";
+            document.getElementById('v-id-name').value = rec.idName || "";
+
+            window.currentViewedRecordForCopy = rec;
+            document.getElementById('admin-view-registered-modal').classList.remove('hidden');
+        };
+
+        window.closeAdminViewModal = function() {
+            document.getElementById('admin-view-registered-modal').classList.add('hidden');
+        };
+
+        window.copyRegisteredEmployeeInfo = function() {
+            const rec = window.currentViewedRecordForCopy;
+            if (!rec) return;
+
+            const pa = rec.philAddress || {};
+            const textToCopy = 
+`SECTION: ${rec.section || "N/A"}
+ACCOUNT NAME: ${rec.name || "N/A"}
+PASSPORT NUMBER: ${rec.passportNumber || "N/A"}
+PASSPORT PLACE OF ISSUANCE: ${rec.pptPlace || "N/A"}
+PASSPORT ISSUE DATE: ${rec.pptIssue || "N/A"}
+PASSPORT EXPIRY DATE: ${rec.pptExpiry || "N/A"}
+ENGLISH NAME: ${rec.name || "N/A"}
+CHINESE NAME: ${rec.name || "N/A"}
+BIRTHDATE: ${rec.birthdate || "N/A"}
+SEX: ${rec.sex || "N/A"}
+NATIONALITY: ${rec.nationality || "N/A"}
+PERMANENT ADDRESS: ${rec.permanentAddress || "N/A"}
+PHIL. ADDRESS - UNIT/FLOOR/HOUSE: ${pa.unit || "N/A"}
+PHIL. ADDRESS - BUILDING: ${pa.building || "N/A"}
+PHIL. ADDRESS - STREET: ${pa.street || "N/A"}
+PHIL. ADDRESS - SUBDIVISION: ${pa.subdivision || "N/A"}
+PHIL. ADDRESS - BARANGAY: ${pa.barangay || "N/A"}
+PHIL. ADDRESS - MUNICIPALITY: ${pa.municipality || "N/A"}
+PHIL. ADDRESS - PROVINCE/STATE/COUNTRY: ${pa.province || "N/A"}
+PHIL. ADDRESS - ZIPCODE: ${pa.zipcode || "N/A"}
+EMAIL ADDRESS: ${rec.email || "N/A"}
+CONTACT NO.: ${rec.contact || "N/A"}
+CIVIL STATUS: ${rec.civilStatus || "N/A"}
+SPOUSE NAME: ${rec.spouse || "N/A"}
+FATHER NAME: ${rec.father || "N/A"}
+MOTHER NAME: ${rec.mother || "N/A"}
+HEIGHT: ${rec.height || "N/A"}
+WEIGHT: ${rec.weight || "N/A"}
+EMERGENCY CONTACT NAME: ${rec.name || "N/A"}
+EMERGENCY CONTACT NO.: ${rec.emergContact || "N/A"}
+ID NAME: ${rec.idName || "N/A"}`;
+
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                alert("All registered employee data copied to clipboard! Ready to paste into company website.");
+            }).catch(err => {
+                alert("Failed to copy: " + err);
+            });
+        };
 
         /* SECTION DEPARTMENT PORTAL LOGIC */
         async function loadSectionPortalTable() {
@@ -1072,9 +1297,8 @@
             document.getElementById('reg-account-name').value = rec.name || "";
             document.getElementById('reg-passport').value = rec.passportNumber || "";
             document.getElementById('reg-english-name').value = rec.name || "";
-            document.getElementById('reg-chinese-name').value = rec.name || ""; // fallback if chinese name is part of data
+            document.getElementById('reg-chinese-name').value = rec.name || "";
 
-            // Fill existing if edited before
             document.getElementById('reg-ppt-place').value = rec.pptPlace || "";
             document.getElementById('reg-ppt-issue').value = rec.pptIssue || "";
             document.getElementById('reg-ppt-expiry').value = rec.pptExpiry || "";
