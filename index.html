@@ -107,7 +107,7 @@
             color: #334155;
         }
 
-        input, select {
+        input, select, textarea {
             width: 100%;
             padding: 10px 14px;
             border: 1px solid var(--border);
@@ -115,7 +115,7 @@
             font-size: 14px;
         }
 
-        input:focus, select:focus {
+        input:focus, select:focus, textarea:focus {
             outline: none;
             border-color: var(--primary);
             box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
@@ -240,13 +240,6 @@
         .val-leave { color: #d97706; font-weight: bold; }
         .val-total { color: var(--primary); font-weight: bold; }
 
-        .table-select {
-            padding: 4px 6px;
-            font-size: 11px;
-            border-radius: 4px;
-            border: 1px solid var(--border);
-        }
-
         .remark-tag {
             background-color: #e0f2fe;
             color: #0369a1;
@@ -254,7 +247,31 @@
             border-radius: 4px;
             font-size: 11px;
             display: inline-block;
-            margin-top: 4px;
+        }
+
+        /* Modal Overlay for Edit View */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: #ffffff;
+            width: 100%;
+            max-width: 600px;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            max-height: 90vh;
+            overflow-y: auto;
         }
     </style>
 </head>
@@ -440,8 +457,8 @@
                             <th>TMS Status</th>
                             <th>ID Process Status</th>
                             <th>Uniform Size</th>
-                            <th>Lace</th>
-                            <th>Uniform</th>
+                            <th>Lace Status</th>
+                            <th>Uniform Status</th>
                             <th>Drug Test</th>
                             <th>Remarks</th>
                             <th>Action</th>
@@ -532,6 +549,87 @@
 
     </div>
 
+    <!-- EDIT INCOMING EXPAT MODAL VIEW -->
+    <div id="expat-edit-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h3 style="margin-top:0; color:var(--primary); text-align:center;">✏️ Edit Incoming Expat Employee</h3>
+            <input type="hidden" id="edit-expat-id">
+
+            <div class="form-group">
+                <label>Passport Number</label>
+                <input type="text" id="edit-expat-passport">
+            </div>
+
+            <div class="form-group">
+                <label>Section / Office</label>
+                <input type="text" id="edit-expat-section">
+            </div>
+
+            <div class="form-group">
+                <label>English Name</label>
+                <input type="text" id="edit-expat-name">
+            </div>
+
+            <div class="form-group">
+                <label>ID Process Status</label>
+                <select id="edit-expat-id-status">
+                    <option value="CHECKING">CHECKING</option>
+                    <option value="FOR ID">FOR ID</option>
+                    <option value="COMPLETED">COMPLETED</option>
+                    <option value="VIP">VIP</option>
+                    <option value="CANCEL">CANCEL</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Uniform Size</label>
+                <select id="edit-expat-uniform-size">
+                    <option value="XS">XS</option>
+                    <option value="S">S</option>
+                    <option value="M">M</option>
+                    <option value="L">L</option>
+                    <option value="XL">XL</option>
+                    <option value="2XL">2XL</option>
+                    <option value="3XL">3XL</option>
+                    <option value="4XL">4XL</option>
+                    <option value="6XL">6XL</option>
+                    <option value="7XL">7XL</option>
+                    <option value="ACCESS CARD">ACCESS CARD</option>
+                    <option value="UNIFORM EXEMPT">UNIFORM EXEMPT</option>
+                </select>
+            </div>
+
+            <div class="form-group" style="display:flex; gap:20px; align-items:center; margin-top:10px;">
+                <label style="margin:0; cursor:pointer;">
+                    <input type="checkbox" id="edit-expat-lace" style="width:auto; margin-right:6px;"> Lace Status Issued
+                </label>
+                <label style="margin:0; cursor:pointer;">
+                    <input type="checkbox" id="edit-expat-uniform" style="width:auto; margin-right:6px;"> Uniform Status Issued
+                </label>
+            </div>
+
+            <div class="form-group" style="margin-top:15px;">
+                <label>Drug Test Status</label>
+                <select id="edit-expat-drug-test">
+                    <option value="NOT PAID YET">NOT PAID YET</option>
+                    <option value="WITH ORF">WITH ORF</option>
+                    <option value="NEGATIVE">NEGATIVE</option>
+                    <option value="POSITIVE">POSITIVE</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Remarks / Recommendations</label>
+                <textarea id="edit-expat-remarks" rows="3" placeholder="Enter remarks..."></textarea>
+            </div>
+
+            <div style="display:flex; gap:10px; margin-top:20px;">
+                <button class="btn btn-clear" style="flex:1;" onclick="saveExpatEditForm()">Save Changes</button>
+                <button class="btn btn-danger" style="flex:1;" onclick="closeExpatEditModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Firebase & Application Scripts -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -550,11 +648,6 @@
         const db = getFirestore(app);
         const SUPER_ADMIN_EMAIL = "anthonyjosephramos30@gmail.com";
 
-        // Options lists
-        const ID_PROCESS_STATUSES = ["CHECKING", "FOR ID", "COMPLETED", "VIP", "CANCEL"];
-        const UNIFORM_SIZES = ["XS", "S", "M", "L", "XL", "2XL", "3XL", "4XL", "6XL", "7XL", "ACCESS CARD", "UNIFORM EXEMPT"];
-        const DRUG_TEST_STATUSES = ["NOT PAID YET", "WITH ORF", "NEGATIVE", "POSITIVE"];
-
         // Department to Position mapping
         const departmentPositions = {
             "Admin-Ops Department": ["Super Account", "Admin-Ops", "Driver", "Admin-Ops Clerk", "Admin-Ops Supervisor", "Admin-Ops Assistant Manager", "Admin Manager"],
@@ -568,6 +661,7 @@
         };
 
         let globalEmployeeRecords = [];
+        let expatRecordsCache = {};
 
         window.switchMainView = function(viewName) {
             document.querySelectorAll('.side-btn').forEach(btn => btn.classList.remove('active'));
@@ -639,7 +733,6 @@
         /* INCOMING EXPAT PORTAL LOGIC */
         window.addToIncomingExpatPortal = async function(pptNo, office, name, tmsStatus) {
             try {
-                const activeUser = JSON.parse(sessionStorage.getItem('active_user') || '{}');
                 const declareDate = new Date().toLocaleString();
 
                 await addDoc(collection(db, "incoming_expats"), {
@@ -670,6 +763,7 @@
             try {
                 const querySnapshot = await getDocs(collection(db, "incoming_expats"));
                 tbody.innerHTML = '';
+                expatRecordsCache = {};
 
                 if (querySnapshot.empty) {
                     tbody.innerHTML = `<tr><td colspan="12" style="text-align:center; color:var(--text-light);">No incoming expat entries found. Add entries from TMS Search.</td></tr>`;
@@ -678,17 +772,15 @@
 
                 let records = [];
                 querySnapshot.forEach(docSnap => {
-                    records.push({ id: docSnap.id, ...docSnap.data() });
+                    const data = { id: docSnap.id, ...docSnap.data() };
+                    records.push(data);
+                    expatRecordsCache[docSnap.id] = data;
                 });
 
                 records.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
                 records.forEach(rec => {
-                    const idOptions = ID_PROCESS_STATUSES.map(opt => `<option value="${opt}" ${rec.idProcessStatus === opt ? 'selected' : ''}>${opt}</option>`).join('');
-                    const sizeOptions = UNIFORM_SIZES.map(opt => `<option value="${opt}" ${rec.uniformSize === opt ? 'selected' : ''}>${opt}</option>`).join('');
-                    const drugOptions = DRUG_TEST_STATUSES.map(opt => `<option value="${opt}" ${rec.drugTest === opt ? 'selected' : ''}>${opt}</option>`).join('');
-
-                    const remarkDisplay = rec.remarks ? `<div class="remark-tag">💬 ${escapeHtml(rec.remarks)}</div>` : '';
+                    const remarkDisplay = rec.remarks ? `<div class="remark-tag">💬 ${escapeHtml(rec.remarks)}</div>` : '<span style="color:#94a3b8;">-</span>';
 
                     tbody.innerHTML += `
                         <tr>
@@ -697,31 +789,15 @@
                             <td>${escapeHtml(rec.section)}</td>
                             <td style="font-weight:bold; text-align:left;">${escapeHtml(rec.name)}</td>
                             <td><span class="status-badge ${rec.tmsRecordStatus === 'YES' ? 'status-approved' : 'status-pending'}">${rec.tmsRecordStatus}</span></td>
-                            <td>
-                                <select class="table-select" onchange="updateExpatField('${rec.id}', 'idProcessStatus', this.value)">
-                                    ${idOptions}
-                                </select>
-                            </td>
-                            <td>
-                                <select class="table-select" onchange="updateExpatField('${rec.id}', 'uniformSize', this.value)">
-                                    ${sizeOptions}
-                                </select>
-                            </td>
-                            <td>
-                                <input type="checkbox" ${rec.laceStatus ? 'checked' : ''} onchange="updateExpatField('${rec.id}', 'laceStatus', this.checked)">
-                            </td>
-                            <td>
-                                <input type="checkbox" ${rec.uniformStatus ? 'checked' : ''} onchange="updateExpatField('${rec.id}', 'uniformStatus', this.checked)">
-                            </td>
-                            <td>
-                                <select class="table-select" onchange="updateExpatField('${rec.id}', 'drugTest', this.value)">
-                                    ${drugOptions}
-                                </select>
-                            </td>
+                            <td><strong>${escapeHtml(rec.idProcessStatus || 'CHECKING')}</strong></td>
+                            <td>${escapeHtml(rec.uniformSize || 'M')}</td>
+                            <td>${rec.laceStatus ? '✅' : '❌'}</td>
+                            <td>${rec.uniformStatus ? '✅' : '❌'}</td>
+                            <td>${escapeHtml(rec.drugTest || 'NOT PAID YET')}</td>
                             <td>${remarkDisplay}</td>
                             <td>
-                                <button class="btn btn-clear" style="padding:2px 6px; font-size:10px;" onclick="promptExpatRemark('${rec.id}', '${escapeQuote(rec.remarks || '')}')">Edit Remark</button>
-                                <button class="btn btn-danger" style="padding:2px 6px; font-size:10px;" onclick="deleteExpatRecord('${rec.id}')">Delete</button>
+                                <button class="btn btn-clear" style="padding:3px 8px; font-size:11px;" onclick="openExpatEditModal('${rec.id}')">✏️ Edit</button>
+                                <button class="btn btn-danger" style="padding:3px 8px; font-size:11px;" onclick="deleteExpatRecord('${rec.id}')">Delete</button>
                             </td>
                         </tr>
                     `;
@@ -731,20 +807,64 @@
             }
         }
 
-        window.updateExpatField = async function(id, field, value) {
-            try {
-                const docRef = doc(db, "incoming_expats", id);
-                await updateDoc(docRef, { [field]: value });
-            } catch (e) {
-                alert("Error updating record: " + e.message);
-            }
+        window.openExpatEditModal = function(id) {
+            const rec = expatRecordsCache[id];
+            if (!rec) return;
+
+            document.getElementById('edit-expat-id').value = id;
+            document.getElementById('edit-expat-passport').value = rec.passportNumber || "";
+            document.getElementById('edit-expat-section').value = rec.section || "";
+            document.getElementById('edit-expat-name').value = rec.name || "";
+            document.getElementById('edit-expat-id-status').value = rec.idProcessStatus || "CHECKING";
+            document.getElementById('edit-expat-uniform-size').value = rec.uniformSize || "M";
+            document.getElementById('edit-expat-lace').checked = !!rec.laceStatus;
+            document.getElementById('edit-expat-uniform').checked = !!rec.uniformStatus;
+            document.getElementById('edit-expat-drug-test').value = rec.drugTest || "NOT PAID YET";
+            document.getElementById('edit-expat-remarks').value = rec.remarks || "";
+
+            document.getElementById('expat-edit-modal').classList.remove('hidden');
         };
 
-        window.promptExpatRemark = async function(id, currentRemark) {
-            const newRemark = prompt("Enter Remark / Recommendation:", currentRemark);
-            if (newRemark !== null) {
-                await updateExpatField(id, 'remarks', newRemark.trim());
+        window.closeExpatEditModal = function() {
+            document.getElementById('expat-edit-modal').classList.add('hidden');
+        };
+
+        window.saveExpatEditForm = async function() {
+            const id = document.getElementById('edit-expat-id').value;
+            const passportNumber = document.getElementById('edit-expat-passport').value.trim();
+            const section = document.getElementById('edit-expat-section').value.trim();
+            const name = document.getElementById('edit-expat-name').value.trim();
+            const idProcessStatus = document.getElementById('edit-expat-id-status').value;
+            const uniformSize = document.getElementById('edit-expat-uniform-size').value;
+            const laceStatus = document.getElementById('edit-expat-lace').checked;
+            const uniformStatus = document.getElementById('edit-expat-uniform').checked;
+            const drugTest = document.getElementById('edit-expat-drug-test').value;
+            const remarks = document.getElementById('edit-expat-remarks').value.trim();
+
+            if (!name || !passportNumber) {
+                alert("Name and Passport Number cannot be empty.");
+                return;
+            }
+
+            try {
+                const docRef = doc(db, "incoming_expats", id);
+                await updateDoc(docRef, {
+                    passportNumber,
+                    section,
+                    name,
+                    idProcessStatus,
+                    uniformSize,
+                    laceStatus,
+                    uniformStatus,
+                    drugTest,
+                    remarks
+                });
+
+                closeExpatEditModal();
                 loadIncomingExpatTable();
+                alert("Expat employee record updated successfully!");
+            } catch (e) {
+                alert("Error saving record: " + e.message);
             }
         };
 
