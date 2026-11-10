@@ -681,7 +681,7 @@
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom: 2px solid var(--border); padding-bottom:12px;">
                 <h3 style="margin:0; color:var(--primary);">👁️ Registered Employee Information</h3>
                 <div style="display:flex; gap:10px;">
-                    <button id="admin-complete-tms-btn" class="btn btn-clear" onclick="markCurrentRecordCompleteTMS()">✅ Mark Complete TMS Registration</button>
+                    <button id="admin-complete-tms-btn" class="btn btn-clear" onclick="markCurrentRecordCompleteTMS()">✅ Complete TMS Registration</button>
                     <button class="badge-copy" onclick="copyRegisteredEmployeeInfo()">📋 Copy All Registered Data</button>
                 </div>
             </div>
@@ -1046,10 +1046,20 @@
             return `${day}-${month}-${year}`;
         }
 
+        function formatDateTimeWithHours(d = new Date()) {
+            const day = String(d.getDate()).padStart(2, '0');
+            const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+            const month = months[d.getMonth()];
+            const year = d.getFullYear();
+            const hours = String(d.getHours()).padStart(2, '0');
+            const minutes = String(d.getMinutes()).padStart(2, '0');
+            return `${day}-${month}-${year} ${hours}:${minutes}`;
+        }
+
         /* INCOMING EXPAT PORTAL LOGIC */
         window.addToIncomingExpatPortal = async function(pptNo, office, name, tmsStatus) {
             try {
-                const declareDate = new Date().toLocaleString();
+                const declareDate = formatDateTimeWithHours();
 
                 await addDoc(collection(db, "incoming_expats"), {
                     declareDate: declareDate,
@@ -1101,19 +1111,16 @@
                     const remarkDisplay = rec.remarks ? `<div class="remark-tag">💬 ${escapeHtml(rec.remarks)}</div>` : '<span style="color:#94a3b8;">-</span>';
                     const regStatus = rec.registrationStatus || "PENDING";
                     
-                    let regStatusBadge = `<span class="status-badge status-pending">PENDING</span>`;
-                    if (regStatus === "COMPLETE TMS REGISTRATION") {
-                        regStatusBadge = `<span class="status-badge status-complete-tms">COMPLETE TMS REGISTRATION</span>`;
-                    } else if (regStatus === "DONE REGISTER") {
-                        regStatusBadge = `<span class="status-badge status-approved">DONE REGISTER</span>`;
+                    let regStatusBadge = `<span class="status-badge status-pending">FOR REG.</span>`;
+                    if (regStatus === "COMPLETE TMS REGISTRATION" || regStatus === "COMPLETE TMS REG.") {
+                        regStatusBadge = `<span class="status-badge status-complete-tms">COMPLETE TMS REG.</span>`;
+                    } else if (regStatus === "DONE REGISTER" || regStatus === "DONE REG.") {
+                        regStatusBadge = `<span class="status-badge status-approved">DONE REG.</span>`;
                     }
 
                     let actionHtml = `<button class="btn btn-clear" style="padding:3px 8px; font-size:11px;" onclick="openExpatEditModal('${rec.id}')">✏️ Edit</button>`;
-                    if (regStatus === "DONE REGISTER" || regStatus === "COMPLETE TMS REGISTRATION") {
+                    if (regStatus === "DONE REGISTER" || regStatus === "DONE REG." || regStatus === "COMPLETE TMS REGISTRATION" || regStatus === "COMPLETE TMS REG.") {
                         actionHtml += ` <button class="btn" style="padding:3px 8px; font-size:11px; background-color:#7c3aed;" onclick="openAdminViewRegisteredModal('${rec.id}')">👁️ View</button>`;
-                    }
-                    if (regStatus === "DONE REGISTER") {
-                        actionHtml += ` <button class="btn btn-clear" style="padding:3px 8px; font-size:11px; background-color:#059669;" onclick="markRecordCompleteTMS('${rec.id}')">✅ Complete TMS</button>`;
                     }
                     actionHtml += ` <button class="btn btn-danger" style="padding:3px 8px; font-size:11px;" onclick="deleteExpatRecord('${rec.id}')">Delete</button>`;
 
@@ -1126,7 +1133,7 @@
                             <td><span class="status-badge ${rec.tmsRecordStatus === 'YES' ? 'status-approved' : 'status-pending'}">${rec.tmsRecordStatus}</span></td>
                             <td><strong>${escapeHtml(rec.idProcessStatus || 'CHECKING')}</strong></td>
                             <td>${regStatusBadge}</td>
-                            <td>${escapeHtml(rec.registerDate || 'N/A')}</td>
+                            <td style="font-size:11px;">${escapeHtml(rec.registerDate || 'N/A')}</td>
                             <td>${escapeHtml(rec.uniformSize || 'M')}</td>
                             <td>${escapeHtml(rec.drugTest || 'NOT PAID YET')}</td>
                             <td>${remarkDisplay}</td>
@@ -1143,10 +1150,11 @@
             if (!confirm("Are you sure you want to mark this employee registration as Complete TMS Registration?")) return;
             try {
                 const docRef = doc(db, "incoming_expats", id);
+                // Status updated without modifying the original registerDate timestamp
                 await updateDoc(docRef, {
-                    registrationStatus: "COMPLETE TMS REGISTRATION"
+                    registrationStatus: "COMPLETE TMS REG."
                 });
-                alert("Status successfully updated to COMPLETE TMS REGISTRATION!");
+                alert("Status successfully updated to COMPLETE TMS REG.!");
                 loadIncomingExpatTable();
                 if (!document.getElementById('admin-view-registered-modal').classList.contains('hidden')) {
                     closeAdminViewModal();
@@ -1210,7 +1218,7 @@
             document.getElementById('v-id-name').value = rec.idName || "";
 
             const completeBtn = document.getElementById('admin-complete-tms-btn');
-            if (rec.registrationStatus === "COMPLETE TMS REGISTRATION") {
+            if (rec.registrationStatus === "COMPLETE TMS REGISTRATION" || rec.registrationStatus === "COMPLETE TMS REG.") {
                 completeBtn.style.display = "none";
             } else {
                 completeBtn.style.display = "inline-block";
@@ -1309,9 +1317,9 @@ ID NAME: ${rec.idName || "N/A"}`;
                 }
 
                 matchedRecords.forEach(rec => {
-                    // Section team only sees "DONE REGISTER" even if status is "COMPLETE TMS REGISTRATION"
-                    const regStatus = (rec.registrationStatus === "DONE REGISTER" || rec.registrationStatus === "COMPLETE TMS REGISTRATION") ? "DONE REGISTER" : "FOR REGISTER";
-                    const badgeClass = (regStatus === "DONE REGISTER") ? "status-approved" : "status-pending";
+                    // Section team sees "DONE REG." even if status was updated by Admin-Ops to "COMPLETE TMS REG."
+                    const regStatus = (rec.registrationStatus === "DONE REGISTER" || rec.registrationStatus === "DONE REG." || rec.registrationStatus === "COMPLETE TMS REGISTRATION" || rec.registrationStatus === "COMPLETE TMS REG.") ? "DONE REG." : "FOR REG.";
+                    const badgeClass = (regStatus === "DONE REG.") ? "status-approved" : "status-pending";
                     const registerDateDisplay = rec.registerDate || "N/A";
 
                     tbody.innerHTML += `
@@ -1320,7 +1328,7 @@ ID NAME: ${rec.idName || "N/A"}`;
                             <td>${escapeHtml(rec.section)}</td>
                             <td style="font-weight:bold; text-align:left;">${escapeHtml(rec.name)}</td>
                             <td><span class="status-badge ${badgeClass}">${regStatus}</span></td>
-                            <td>${escapeHtml(registerDateDisplay)}</td>
+                            <td style="font-size:11px;">${escapeHtml(registerDateDisplay)}</td>
                             <td>${escapeHtml(rec.drugTest || 'NOT PAID YET')}</td>
                             <td>
                                 <button class="btn btn-clear" style="padding:4px 10px; font-size:11px;" onclick="openSectionRegisterModal('${rec.id}')">📝 Register Info</button>
@@ -1424,7 +1432,8 @@ ID NAME: ${rec.idName || "N/A"}`;
             const emergContact = document.getElementById('reg-emerg-contact').value.trim().toUpperCase();
             const idName = document.getElementById('reg-id-name').value.trim().toUpperCase();
 
-            const registerDate = new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+            // Store timestamp with date + exact time (hours and minutes)
+            const registerDate = formatDateTimeWithHours();
 
             try {
                 const docRef = doc(db, "incoming_expats", id);
@@ -1447,13 +1456,13 @@ ID NAME: ${rec.idName || "N/A"}`;
                     weight,
                     emergContact,
                     idName,
-                    registrationStatus: "DONE REGISTER",
+                    registrationStatus: "DONE REG.",
                     registerDate: registerDate
                 });
 
                 closeSectionRegisterModal();
                 loadSectionPortalTable();
-                alert("Employee information successfully registered and marked as DONE REGISTER!");
+                alert("Employee information successfully registered and marked as DONE REG.!");
             } catch (e) {
                 alert("Error saving registration: " + e.message);
             }
