@@ -107,7 +107,7 @@
             color: #334155;
         }
 
-        /* Standardized Form Controls - Normal Text Handling */
+        /* Standardized Form Controls */
         input, select, textarea {
             width: 100%;
             padding: 10px 14px;
@@ -466,7 +466,7 @@
         </div>
 
         <!-- VIEW 3: INCOMING EXPAT EMPLOYEE PORTAL (Exclusive Admin-Ops) -->
-        <div id="view-incoming-expat" class="container hidden" style="max-width: 1250px;">
+        <div id="view-incoming-expat" class="container hidden" style="max-width: 1350px;">
             <div style="text-align: center; margin-bottom: 20px;">
                 <h2 style="margin-top: 10px;">✈️ Incoming Expat Employee Portal</h2>
                 <p style="color: var(--text-light);">Manage expat intake status, uniform sizes, drug tests, and ID processing.</p>
@@ -481,6 +481,7 @@
                             <th>Section</th>
                             <th>Name</th>
                             <th>TMS Status</th>
+                            <th>TMS ID Number</th>
                             <th>ID Process Status</th>
                             <th>Reg. Status</th>
                             <th>Register Date</th>
@@ -493,7 +494,7 @@
                         </tr>
                     </thead>
                     <tbody id="incoming-expat-table-body">
-                        <tr><td colspan="14" style="text-align:center;">Loading incoming expat roster...</td></tr>
+                        <tr><td colspan="15" style="text-align:center;">Loading incoming expat roster...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -623,6 +624,11 @@
             <div class="form-group">
                 <label>English Name</label>
                 <input type="text" id="edit-expat-name">
+            </div>
+
+            <div class="form-group">
+                <label>TMS ID Number</label>
+                <input type="text" id="edit-expat-tms-id" placeholder="e.g. 10482 or N/A">
             </div>
 
             <div class="form-group">
@@ -1056,7 +1062,7 @@
             return `${day}-${month}-${year}`;
         }
 
-        // Standardized timestamp format: 11/10/2026, 5:58:37 PM (MM/DD/YYYY, h:mm:ss A)
+        // Format timestamp as: MM/DD/YYYY, h:mm:ss A
         function formatDateTimeFull(d = new Date()) {
             const month = String(d.getMonth() + 1).padStart(2, '0');
             const day = String(d.getDate()).padStart(2, '0');
@@ -1074,7 +1080,7 @@
         }
 
         /* INCOMING EXPAT PORTAL LOGIC */
-        window.addToIncomingExpatPortal = async function(pptNo, office, name, tmsStatus) {
+        window.addToIncomingExpatPortal = async function(pptNo, office, name, tmsStatus, tmsIdNumber = "N/A") {
             try {
                 const declareDate = formatDateTimeFull();
 
@@ -1084,6 +1090,7 @@
                     section: office || "N/A",
                     name: name || "N/A",
                     tmsRecordStatus: tmsStatus,
+                    tmsIdNumber: tmsIdNumber || "N/A",
                     idProcessStatus: "CHECKING",
                     uniformSize: "M",
                     laceStatus: false,
@@ -1103,7 +1110,7 @@
 
         async function loadIncomingExpatTable() {
             const tbody = document.getElementById('incoming-expat-table-body');
-            tbody.innerHTML = `<tr><td colspan="14" style="text-align:center;">Loading incoming expat roster...</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="15" style="text-align:center;">Loading incoming expat roster...</td></tr>`;
 
             try {
                 const querySnapshot = await getDocs(collection(db, "incoming_expats"));
@@ -1111,7 +1118,7 @@
                 expatRecordsCache = {};
 
                 if (querySnapshot.empty) {
-                    tbody.innerHTML = `<tr><td colspan="14" style="text-align:center; color:var(--text-light);">No incoming expat entries found. Add entries from TMS Search.</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="15" style="text-align:center; color:var(--text-light);">No incoming expat entries found. Add entries from TMS Search.</td></tr>`;
                     return;
                 }
 
@@ -1151,6 +1158,7 @@
                             <td>${escapeHtml(rec.section)}</td>
                             <td style="font-weight:bold; text-align:left;">${escapeHtml(rec.name)}</td>
                             <td><span class="status-badge ${rec.tmsRecordStatus === 'YES' ? 'status-approved' : 'status-pending'}">${rec.tmsRecordStatus}</span></td>
+                            <td><strong>${escapeHtml(rec.tmsIdNumber || 'N/A')}</strong></td>
                             <td><strong>${escapeHtml(rec.idProcessStatus || 'CHECKING')}</strong></td>
                             <td>${regStatusBadge}</td>
                             <td style="font-size:11px;">${escapeHtml(rec.registerDate || 'N/A')}</td>
@@ -1164,7 +1172,7 @@
                     `;
                 });
             } catch (e) {
-                tbody.innerHTML = `<tr><td colspan="14" style="text-align:center; color:var(--error);">Error loading records: ${e.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="15" style="text-align:center; color:var(--error);">Error loading records: ${e.message}</td></tr>`;
             }
         }
 
@@ -1496,6 +1504,7 @@ ID NAME: ${rec.idName || "N/A"}`;
             document.getElementById('edit-expat-passport').value = rec.passportNumber || "";
             document.getElementById('edit-expat-section').value = rec.section || "";
             document.getElementById('edit-expat-name').value = rec.name || "";
+            document.getElementById('edit-expat-tms-id').value = rec.tmsIdNumber || "N/A";
             document.getElementById('edit-expat-id-status').value = rec.idProcessStatus || "CHECKING";
             document.getElementById('edit-expat-uniform-size').value = rec.uniformSize || "M";
             document.getElementById('edit-expat-lace').checked = !!rec.laceStatus;
@@ -1515,6 +1524,7 @@ ID NAME: ${rec.idName || "N/A"}`;
             const passportNumber = document.getElementById('edit-expat-passport').value.trim().toUpperCase();
             const section = document.getElementById('edit-expat-section').value.trim().toUpperCase();
             const name = document.getElementById('edit-expat-name').value.trim().toUpperCase();
+            const tmsIdNumber = document.getElementById('edit-expat-tms-id').value.trim().toUpperCase() || "N/A";
             const idProcessStatus = document.getElementById('edit-expat-id-status').value;
             const uniformSize = document.getElementById('edit-expat-uniform-size').value;
             const laceStatus = document.getElementById('edit-expat-lace').checked;
@@ -1533,6 +1543,7 @@ ID NAME: ${rec.idName || "N/A"}`;
                     passportNumber,
                     section,
                     name,
+                    tmsIdNumber,
                     idProcessStatus,
                     uniformSize,
                     laceStatus,
@@ -1871,7 +1882,7 @@ AGE STATUS: ${ageStatusOutput}`;
                             <span>Search Result: No Record Found</span>
                             <div>
                                 <button class="badge-copy" onclick="recordCopyAction(\`${escapeQuote(notFoundText)}\`)">📋 Copy Not Found Result</button>
-                                <button class="btn-add-expat" onclick="addToIncomingExpatPortal('${escapeQuote(inputPassport)}', 'N/A', '${escapeQuote(inputName)}', 'NO')">➕ Add to Incoming Expat Portal</button>
+                                <button class="btn-add-expat" onclick="addToIncomingExpatPortal('${escapeQuote(inputPassport)}', 'N/A', '${escapeQuote(inputName)}', 'NO', 'N/A')">➕ Add to Incoming Expat Portal</button>
                             </div>
                         </div>
                         <div>${notFoundText}</div>
@@ -1920,7 +1931,7 @@ AGE STATUS: ${ageStatus}`;
                         <strong>Record #${index + 1}</strong>
                         <div>
                             <button class="badge-copy" onclick="recordCopyAction(\`${escapeQuote(cardText)}\`)">📋 Copy Record</button>
-                            <button class="btn-add-expat" onclick="addToIncomingExpatPortal('${escapeQuote(pptNo)}', '${escapeQuote(office)}', '${escapeQuote(pptName)}', 'YES')">➕ Add to Incoming Expat Portal</button>
+                            <button class="btn-add-expat" onclick="addToIncomingExpatPortal('${escapeQuote(pptNo)}', '${escapeQuote(office)}', '${escapeQuote(pptName)}', 'YES', '${escapeQuote(tmsId)}')">➕ Add to Incoming Expat Portal</button>
                         </div>
                     </div>
                     <div>${cardText}</div>
