@@ -1184,14 +1184,18 @@
                     const recTmsId = String(rec.tmsIdNumber || "").trim().toUpperCase();
                     const recName = String(rec.name || "").trim().toUpperCase();
                     const recBday = String(rec.birthdate || "").trim().toUpperCase();
+                    const recSection = String(rec.section || "").trim().toUpperCase();
+                    const recStatus = String(rec.idProcessStatus || "").trim().toUpperCase();
 
-                    // Check criteria: Passport match, TMS ID match (if valid), or Name + DOB match
+                    // Ignore cancelled records when checking duplicates
+                    if (recStatus === "CANCEL") return;
+
                     const isPptMatch = pptNo !== "N/A" && recPpt === pptNo;
                     const isTmsIdMatch = tmsIdNumber !== "N/A" && recTmsId === tmsIdNumber;
                     const isNameDobMatch = name !== "N/A" && recName === name && bday !== "" && recBday === bday;
 
                     if (!existingMatch && (isPptMatch || isTmsIdMatch || isNameDobMatch)) {
-                        existingMatch = rec;
+                        existingMatch = { ...rec, recSection };
                         if (isPptMatch) matchReason = "Matching Passport Number";
                         else if (isTmsIdMatch) matchReason = "Matching TMS ID Number";
                         else matchReason = "Matching Name and Date of Birth";
@@ -1199,7 +1203,14 @@
                 });
 
                 if (existingMatch) {
-                    // Duplicate found! Open duplicate confirmation modal
+                    // Check if same section
+                    if (existingMatch.recSection === newSection) {
+                        alert(`❌ Rejected: This employee is already added to the Incoming Expat list under Section "${newSection}". Note: This record already exists in the portal.`);
+                        closeAddExpatModal();
+                        return;
+                    }
+
+                    // Different section -> Open duplicate confirmation modal for management approval
                     closeAddExpatModal();
                     document.getElementById('dup-target-id').value = existingMatch.id;
                     document.getElementById('dup-match-reason').textContent = matchReason;
