@@ -122,7 +122,9 @@
         #section-register-modal input, 
         #section-register-modal textarea,
         #add-expat-section-modal input,
-        #add-expat-section-modal textarea {
+        #add-expat-section-modal textarea,
+        #duplicate-expat-modal input,
+        #duplicate-expat-modal textarea {
             text-transform: uppercase;
         }
 
@@ -617,6 +619,7 @@
             <input type="hidden" id="modal-expat-name">
             <input type="hidden" id="modal-expat-tms-status">
             <input type="hidden" id="modal-expat-tms-id">
+            <input type="hidden" id="modal-expat-bday">
 
             <div class="form-group" style="margin-top:20px;">
                 <label>New Section Request (e.g. 11A, 11B, Section 12)</label>
@@ -624,8 +627,43 @@
             </div>
 
             <div style="display:flex; gap:10px; margin-top:25px;">
-                <button class="btn btn-clear" style="flex:1;" onclick="confirmAddToIncomingExpat()">Add to Portal</button>
+                <button class="btn btn-clear" style="flex:1;" onclick="processAddExpatRequest()">Add to Portal</button>
                 <button class="btn btn-danger" style="flex:1;" onclick="closeAddExpatModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- DUPLICATE DATA WARNING & MANAGEMENT APPROVAL MODAL -->
+    <div id="duplicate-expat-modal" class="modal-overlay hidden">
+        <div class="modal-content" style="max-width: 550px;">
+            <h3 style="margin-top:0; color:var(--error); text-align:center;">⚠️ Duplicate Record Detected</h3>
+            <p style="color: var(--text); font-size:14px; text-align:center;">
+                This employee record already exists in the Incoming Expat Employee list (<span id="dup-match-reason" style="font-weight:bold; color:var(--primary);"></span>).
+            </p>
+
+            <div style="background-color: #f8fafc; border: 1px solid var(--border); padding: 15px; border-radius: 6px; margin-bottom: 20px; font-size:13px;">
+                <p style="margin:0 0 8px 0;"><strong>Existing Record Details:</strong></p>
+                <div><strong>Name:</strong> <span id="dup-existing-name">-</span></div>
+                <div><strong>Passport:</strong> <span id="dup-existing-passport">-</span></div>
+                <div><strong>TMS ID:</strong> <span id="dup-existing-tmsid">-</span></div>
+                <div><strong>Current Section:</strong> <span id="dup-existing-section">-</span></div>
+            </div>
+
+            <p style="font-size:13px; color:var(--text-light); text-align:center;">
+                Is this a request for another section? If confirmed by top management, the existing record status will be set to <strong>CANCEL</strong> and a new record will be added for the new section.
+            </p>
+
+            <input type="hidden" id="dup-target-id">
+            <input type="hidden" id="dup-new-ppt">
+            <input type="hidden" id="dup-new-name">
+            <input type="hidden" id="dup-new-section">
+            <input type="hidden" id="dup-new-tms-status">
+            <input type="hidden" id="dup-new-tms-id">
+            <input type="hidden" id="dup-new-bday">
+
+            <div style="display:flex; gap:10px; margin-top:20px;">
+                <button class="btn btn-admin" style="flex:1; font-size:13px;" onclick="confirmManagementApproval()">✅ Approve & Update (Set Old to CANCEL)</button>
+                <button class="btn btn-danger" style="flex:1;" onclick="closeDuplicateModal()">Cancel Request</button>
             </div>
         </div>
     </div>
@@ -1104,12 +1142,13 @@
             return `${month}/${day}/${year}, ${hours}:${minutes}:${seconds} ${ampm}`;
         }
 
-        /* INCOMING EXPAT PORTAL LOGIC & SECTION MODAL */
-        window.openAddExpatModal = function(pptNo, office, name, tmsStatus, tmsIdNumber) {
+        /* INCOMING EXPAT PORTAL & DUPLICATE PREVENTION LOGIC */
+        window.openAddExpatModal = function(pptNo, office, name, tmsStatus, tmsIdNumber, birthdate = "") {
             document.getElementById('modal-expat-ppt').value = pptNo || "N/A";
             document.getElementById('modal-expat-name').value = name || "N/A";
             document.getElementById('modal-expat-tms-status').value = tmsStatus || "NO";
             document.getElementById('modal-expat-tms-id').value = tmsIdNumber || "N/A";
+            document.getElementById('modal-expat-bday').value = birthdate || "";
             document.getElementById('modal-target-name').textContent = name || "Employee";
             document.getElementById('modal-expat-new-section').value = office && office !== "N/A" ? office : "";
             
@@ -1120,11 +1159,12 @@
             document.getElementById('add-expat-section-modal').classList.add('hidden');
         };
 
-        window.confirmAddToIncomingExpat = async function() {
-            const pptNo = document.getElementById('modal-expat-ppt').value;
-            const name = document.getElementById('modal-expat-name').value;
+        window.processAddExpatRequest = async function() {
+            const pptNo = document.getElementById('modal-expat-ppt').value.trim().toUpperCase();
+            const name = document.getElementById('modal-expat-name').value.trim().toUpperCase();
             const tmsStatus = document.getElementById('modal-expat-tms-status').value;
-            const tmsIdNumber = document.getElementById('modal-expat-tms-id').value;
+            const tmsIdNumber = document.getElementById('modal-expat-tms-id').value.trim().toUpperCase();
+            const bday = document.getElementById('modal-expat-bday').value.trim().toUpperCase();
             const newSection = document.getElementById('modal-expat-new-section').value.trim().toUpperCase();
 
             if (!newSection) {
@@ -1133,8 +1173,54 @@
             }
 
             try {
-                const declareDate = formatDateTimeFull();
+                // Fetch all current incoming expats to check for duplicates
+                const querySnapshot = await getDocs(collection(db, "incoming_expats"));
+                let existingMatch = null;
+                let matchReason = "";
 
+                querySnapshot.forEach(docSnap => {
+                    const rec = { id: docSnap.id, ...docSnap.data() };
+                    const recPpt = String(rec.passportNumber || "").trim().toUpperCase();
+                    const recTmsId = String(rec.tmsIdNumber || "").trim().toUpperCase();
+                    const recName = String(rec.name || "").trim().toUpperCase();
+                    const recBday = String(rec.birthdate || "").trim().toUpperCase();
+
+                    // Check criteria: Passport match, TMS ID match (if valid), or Name + DOB match
+                    const isPptMatch = pptNo !== "N/A" && recPpt === pptNo;
+                    const isTmsIdMatch = tmsIdNumber !== "N/A" && recTmsId === tmsIdNumber;
+                    const isNameDobMatch = name !== "N/A" && recName === name && bday !== "" && recBday === bday;
+
+                    if (!existingMatch && (isPptMatch || isTmsIdMatch || isNameDobMatch)) {
+                        existingMatch = rec;
+                        if (isPptMatch) matchReason = "Matching Passport Number";
+                        else if (isTmsIdMatch) matchReason = "Matching TMS ID Number";
+                        else matchReason = "Matching Name and Date of Birth";
+                    }
+                });
+
+                if (existingMatch) {
+                    // Duplicate found! Open duplicate confirmation modal
+                    closeAddExpatModal();
+                    document.getElementById('dup-target-id').value = existingMatch.id;
+                    document.getElementById('dup-match-reason').textContent = matchReason;
+                    document.getElementById('dup-existing-name').textContent = existingMatch.name || "N/A";
+                    document.getElementById('dup-existing-passport').textContent = existingMatch.passportNumber || "N/A";
+                    document.getElementById('dup-existing-tmsid').textContent = existingMatch.tmsIdNumber || "N/A";
+                    document.getElementById('dup-existing-section').textContent = existingMatch.section || "N/A";
+
+                    document.getElementById('dup-new-ppt').value = pptNo;
+                    document.getElementById('dup-new-name').value = name;
+                    document.getElementById('dup-new-section').value = newSection;
+                    document.getElementById('dup-new-tms-status').value = tmsStatus;
+                    document.getElementById('dup-new-tms-id').value = tmsIdNumber;
+                    document.getElementById('dup-new-bday').value = bday;
+
+                    document.getElementById('duplicate-expat-modal').classList.remove('hidden');
+                    return;
+                }
+
+                // No duplicate found, proceed with normal add
+                const declareDate = formatDateTimeFull();
                 await addDoc(collection(db, "incoming_expats"), {
                     declareDate: declareDate,
                     passportNumber: pptNo,
@@ -1142,6 +1228,7 @@
                     name: name,
                     tmsRecordStatus: tmsStatus,
                     tmsIdNumber: tmsIdNumber,
+                    birthdate: bday,
                     idProcessStatus: "CHECKING",
                     uniformSize: "M",
                     laceStatus: false,
@@ -1157,6 +1244,61 @@
                 alert(`Success: ${name} added to Incoming Expat Employee Portal under section ${newSection}!`);
             } catch (e) {
                 alert("Error adding to Incoming Expat Portal: " + e.message);
+            }
+        };
+
+        window.closeDuplicateModal = function() {
+            document.getElementById('duplicate-expat-modal').classList.add('hidden');
+        };
+
+        window.confirmManagementApproval = async function() {
+            const oldId = document.getElementById('dup-target-id').value;
+            const pptNo = document.getElementById('dup-new-ppt').value;
+            const name = document.getElementById('dup-new-name').value;
+            const newSection = document.getElementById('dup-new-section').value;
+            const tmsStatus = document.getElementById('dup-new-tms-status').value;
+            const tmsIdNumber = document.getElementById('dup-new-tms-id').value;
+            const bday = document.getElementById('dup-new-bday').value;
+
+            try {
+                // 1. Update old record status to CANCEL and add cancellation remark
+                const oldDocRef = doc(db, "incoming_expats", oldId);
+                const oldRec = expatRecordsCache[oldId] || {};
+                const oldRemarks = oldRec.remarks ? oldRec.remarks + " | " : "";
+                const cancelRemark = oldRemarks + "Cancelled due to newer section request approved by management.";
+
+                await updateDoc(oldDocRef, {
+                    idProcessStatus: "CANCEL",
+                    remarks: cancelRemark
+                });
+
+                // 2. Add new record with new section request and approved remark
+                const declareDate = formatDateTimeFull();
+                const approvalRemark = "Approved by management for new section request.";
+
+                await addDoc(collection(db, "incoming_expats"), {
+                    declareDate: declareDate,
+                    passportNumber: pptNo,
+                    section: newSection,
+                    name: name,
+                    tmsRecordStatus: tmsStatus,
+                    tmsIdNumber: tmsIdNumber,
+                    birthdate: bday,
+                    idProcessStatus: "CHECKING",
+                    uniformSize: "M",
+                    laceStatus: false,
+                    uniformStatus: false,
+                    drugTest: "NOT PAID YET",
+                    remarks: approvalRemark,
+                    registrationStatus: "PENDING",
+                    registerDate: "N/A",
+                    createdAt: new Date().getTime()
+                });
+
+                closeDuplicateModal();
+                alert(`Top management approval confirmed! Previous record set to CANCEL, and new record successfully added under section ${newSection}.`);
+            } catch (e) {
+                alert("Error processing management approval: " + e.message);
             }
         };
 
@@ -1902,17 +2044,19 @@ ID NAME: ${rec.idName || "N/A"}`;
                 const inputName = nameQuery || "N/A";
                 const inputPassport = passportQuery || "N/A";
                 let ageStatusOutput = "N/A";
+                let bdayFormatted = "";
 
                 if (bdayQuery) {
                     const parsedBday = new Date(bdayQuery);
                     if (!isNaN(parsedBday.getTime())) {
-                        const formattedBdayOutput = formatDate(parsedBday);
+                        bdayFormatted = formatDate(parsedBday);
                         const today = new Date();
                         let age = today.getFullYear() - parsedBday.getFullYear();
                         const m = today.getMonth() - parsedBday.getMonth();
                         if (m < 0 || (m === 0 && today.getDate() < parsedBday.getDate())) age--;
-                        ageStatusOutput = (age < 21 ? "Underage" : "Legal Age") + ` (DOB: ${formattedBdayOutput})`;
+                        ageStatusOutput = (age < 21 ? "Underage" : "Legal Age") + ` (DOB: ${bdayFormatted})`;
                     } else {
+                        bdayFormatted = bdayQuery;
                         ageStatusOutput = `N/A (DOB: ${bdayQuery})`;
                     }
                 }
@@ -1934,7 +2078,7 @@ AGE STATUS: ${ageStatusOutput}`;
                             <span>Search Result: No Record Found</span>
                             <div>
                                 <button class="badge-copy" onclick="recordCopyAction(\`${escapeQuote(notFoundText)}\`)">📋 Copy Not Found Result</button>
-                                <button class="btn-add-expat" onclick="openAddExpatModal('${escapeQuote(inputPassport)}', 'N/A', '${escapeQuote(inputName)}', 'NO', 'N/A')">➕ Add to Incoming Expat Portal</button>
+                                <button class="btn-add-expat" onclick="openAddExpatModal('${escapeQuote(inputPassport)}', 'N/A', '${escapeQuote(inputName)}', 'NO', 'N/A', '${escapeQuote(bdayFormatted)}')">➕ Add to Incoming Expat Portal</button>
                             </div>
                         </div>
                         <div>${notFoundText}</div>
@@ -1946,6 +2090,7 @@ AGE STATUS: ${ageStatusOutput}`;
                 const pptName = getValue(row, ["English Name", "PPT NAME", "Name", "Full Name"]) || "N/A";
                 const pptNo = getValue(row, ["Passport", "Passport No", "PPT NO", "PPT NO."]) || "N/A";
                 const bdayRaw = getValue(row, ["Birthday", "Birthdate", "Birth Date"]);
+                const formattedBday = formatDate(bdayRaw);
                 const office = getValue(row, ["Office", "PREV. OFFICE", "Previous Office"]) || "N/A";
                 const site = getValue(row, ["Site", "PREV. SITE", "Company", "Previous Site"]) || "N/A";
                 const status = getValue(row, ["Status", "LAST STATUS", "Last Status"]) || "N/A";
@@ -1960,7 +2105,7 @@ AGE STATUS: ${ageStatusOutput}`;
                         let age = today.getFullYear() - birthDate.getFullYear();
                         const m = today.getMonth() - birthDate.getMonth();
                         if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
-                        ageStatus = (age < 21 ? "Underage" : "Legal Age") + ` (DOB: ${formatDate(birthDate)})`;
+                        ageStatus = (age < 21 ? "Underage" : "Legal Age") + ` (DOB: ${formattedBday})`;
                     }
                 }
 
@@ -1983,7 +2128,7 @@ AGE STATUS: ${ageStatus}`;
                         <strong>Record #${index + 1}</strong>
                         <div>
                             <button class="badge-copy" onclick="recordCopyAction(\`${escapeQuote(cardText)}\`)">📋 Copy Record</button>
-                            <button class="btn-add-expat" onclick="openAddExpatModal('${escapeQuote(pptNo)}', '${escapeQuote(office)}', '${escapeQuote(pptName)}', 'YES', '${escapeQuote(tmsId)}')">➕ Add to Incoming Expat Portal</button>
+                            <button class="btn-add-expat" onclick="openAddExpatModal('${escapeQuote(pptNo)}', '${escapeQuote(office)}', '${escapeQuote(pptName)}', 'YES', '${escapeQuote(tmsId)}', '${escapeQuote(formattedBday)}')">➕ Add to Incoming Expat Portal</button>
                         </div>
                     </div>
                     <div>${cardText}</div>
