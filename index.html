@@ -476,6 +476,13 @@
                 <p style="color: var(--text-light);">Manage expat intake status, uniform sizes, drug tests, and ID processing.</p>
             </div>
 
+            <!-- TEMPORARY BULK EXCEL UPLOADER FOR INCOMING EXPATS -->
+            <div id="temp-expat-upload-container" style="background-color: #f1f5f9; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 2px dashed var(--border);">
+                <label style="font-weight: bold; margin-bottom: 8px; font-size: 15px;">📁 Temporary Bulk Upload: Import Expat Tracker Excel File:</label>
+                <input type="file" id="temp-expat-file-input" accept=".xlsx, .xls" onchange="handleTempExpatBulkUpload(event)">
+                <div id="temp-expat-upload-status" class="msg" style="margin-top: 8px;"></div>
+            </div>
+
             <div style="overflow-x: auto; margin-top: 15px;">
                 <table>
                     <thead>
@@ -1129,10 +1136,92 @@
             const ampm = hours >= 12 ? 'PM' : 'AM';
             
             hours = hours % 12;
-            hours = hours ? hours : 12; // convert 0 to 12
+            hours = hours ? hours : 12;
 
             return `${month}/${day}/${year}, ${hours}:${minutes}:${seconds} ${ampm}`;
         }
+
+        /* TEMPORARY BULK EXCEL UPLOADER FOR INCOMING EXPATS */
+        window.handleTempExpatBulkUpload = async function(e) {
+            const file = e.target.files[0];
+            const statusEl = document.getElementById('temp-expat-upload-status');
+            if (!file) return;
+
+            statusEl.textContent = `Reading and uploading data from ${file.name}...`;
+            statusEl.className = "msg";
+
+            try {
+                const data = await file.arrayBuffer();
+                const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+                let parsedRows = [];
+
+                workbook.SheetNames.forEach(sheetName => {
+                    const sheetJson = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: "" });
+                    parsedRows = parsedRows.concat(sheetJson);
+                });
+
+                const getValue = (row, possibleKeys) => {
+                    for (let k of Object.keys(row)) {
+                        for (let p of possibleKeys) {
+                            if (k.trim().toLowerCase() === p.toLowerCase()) return row[k];
+                        }
+                    }
+                    return "";
+                };
+
+                let importedCount = 0;
+                for (let row of parsedRows) {
+                    const passportNumber = String(getValue(row, ["Passport Number", "Passport", "PPT NO", "PPT NO."])).trim().toUpperCase();
+                    const name = String(getValue(row, ["Name", "English Name", "PPT NAME", "Full Name"])).trim().toUpperCase();
+                    const section = String(getValue(row, ["Section", "Office", "Department"])).trim().toUpperCase();
+
+                    if (!passportNumber && !name) continue;
+
+                    const declareDate = String(getValue(row, ["Declare Date", "Date"])) || formatDateTimeFull();
+                    const tmsRecordStatus = String(getValue(row, ["TMS Status", "TMS Record Status", "W/ RECORD ON TMS"])).trim().toUpperCase() || "YES";
+                    const tmsIdNumber = String(getValue(row, ["TMS ID Number", "TMS ID", "ID Number"])).trim().toUpperCase() || "N/A";
+                    const idProcessStatus = String(getValue(row, ["ID Process Status", "Status"])).trim().toUpperCase() || "CHECKING";
+                    const uniformSize = String(getValue(row, ["Uniform Size"])).trim().toUpperCase() || "M";
+                    
+                    const laceVal = String(getValue(row, ["Lace Issued", "Lace Status"])).trim().toUpperCase();
+                    const laceStatus = laceVal === "TRUE" || laceVal === "YES";
+
+                    const uniformVal = String(getValue(row, ["Uniform Issued", "Uniform Status"])).trim().toUpperCase();
+                    const uniformStatus = uniformVal === "TRUE" || uniformVal === "YES";
+
+                    const drugTest = String(getValue(row, ["Drug Test", "Drug Test Status"])).trim().toUpperCase() || "NOT PAID YET";
+                    const remarks = String(getValue(row, ["Remarks", "Notes"])).trim().toUpperCase() || "";
+
+                    await addDoc(collection(db, "incoming_expats"), {
+                        declareDate: declareDate,
+                        passportNumber: passportNumber || "N/A",
+                        section: section || "UNASSIGNED",
+                        name: name || "UNKNOWN",
+                        tmsRecordStatus: tmsRecordStatus,
+                        tmsIdNumber: tmsIdNumber,
+                        birthdate: "",
+                        idProcessStatus: idProcessStatus,
+                        uniformSize: uniformSize,
+                        laceStatus: laceStatus,
+                        uniformStatus: uniformStatus,
+                        drugTest: drugTest,
+                        remarks: remarks,
+                        registrationStatus: "PENDING",
+                        registerDate: "N/A",
+                        createdAt: new Date().getTime()
+                    });
+
+                    importedCount++;
+                }
+
+                statusEl.textContent = `Successfully imported ${importedCount} record(s) into the Incoming Expat Portal!`;
+                statusEl.className = "msg success";
+                loadIncomingExpatTable();
+            } catch (err) {
+                statusEl.textContent = "Error importing Excel file: " + err.message;
+                statusEl.className = "msg error";
+            }
+        };
 
         /* INCOMING EXPAT PORTAL & DUPLICATE PREVENTION LOGIC */
         window.openAddExpatModal = function(pptNo, office, name, tmsStatus, tmsIdNumber, birthdate = "") {
@@ -1165,7 +1254,6 @@
             }
 
             try {
-                // Fetch all current incoming expats to check for active records
                 const querySnapshot = await getDocs(collection(db, "incoming_expats"));
                 let activeDuplicateMatch = null;
                 let matchReason = "";
@@ -1178,12 +1266,10 @@
                     const recBday = String(rec.birthdate || "").trim().toUpperCase();
                     const recStatus = String(rec.idProcessStatus || "").trim().toUpperCase();
 
-                    // Allow adding if previous record is COMPLETED or CANCEL
                     if (recStatus === "COMPLETED" || recStatus === "COMPLETE" || recStatus === "CANCEL") {
                         return;
                     }
 
-                    // Block if ID Process Status is FOR ID or CHECKING (or any non-completed active state)
                     if (recStatus === "FOR ID" || recStatus === "CHECKING") {
                         const isPptMatch = pptNo !== "N/A" && recPpt === pptNo;
                         const isTmsIdMatch = tmsIdNumber !== "N/A" && recTmsId === tmsIdNumber;
@@ -1199,7 +1285,6 @@
                 });
 
                 if (activeDuplicateMatch) {
-                    // Open Cancel-Only Warning Modal informing the record is already added in the list
                     closeAddExpatModal();
                     document.getElementById('dup-match-reason').textContent = matchReason;
                     document.getElementById('dup-existing-name').textContent = activeDuplicateMatch.name || "N/A";
@@ -1212,7 +1297,6 @@
                     return;
                 }
 
-                // Proceed to add if no active FOR ID / CHECKING record exists (or if previous record was COMPLETED)
                 const declareDate = formatDateTimeFull();
                 await addDoc(collection(db, "incoming_expats"), {
                     declareDate: declareDate,
@@ -1254,7 +1338,7 @@
                 expatRecordsCache = {};
 
                 if (querySnapshot.empty) {
-                    tbody.innerHTML = `<tr><td colspan="15" style="text-align:center; color:var(--text-light);">No incoming expat entries found. Add entries from TMS Search.</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="15" style="text-align:center; color:var(--text-light);">No incoming expat entries found. Add entries from TMS Search or bulk upload above.</td></tr>`;
                     return;
                 }
 
@@ -1596,7 +1680,6 @@ ID NAME: ${rec.idName || "N/A"}`;
             const emergContact = document.getElementById('reg-emerg-contact').value.trim().toUpperCase();
             const idName = document.getElementById('reg-id-name').value.trim().toUpperCase();
 
-            // Store timestamp with format: MM/DD/YYYY, h:mm:ss A
             const registerDate = formatDateTimeFull();
 
             try {
