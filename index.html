@@ -470,7 +470,7 @@
         </div>
 
         <!-- VIEW 3: INCOMING EXPAT EMPLOYEE PORTAL (Exclusive Admin-Ops) -->
-        <div id="view-incoming-expat" class="container hidden" style="max-width: 1350px;">
+        <div id="view-incoming-expat" class="container hidden" style="max-width: 1450px;">
             <div style="text-align: center; margin-bottom: 20px;">
                 <h2 style="margin-top: 10px;">✈️ Incoming Expat Employee Portal</h2>
                 <p style="color: var(--text-light);">Manage expat intake status, uniform sizes, drug tests, and ID processing.</p>
@@ -500,12 +500,13 @@
                             <th>Lace Issued</th>
                             <th>Uniform Issued</th>
                             <th>Drug Test</th>
+                            <th>ID Process Complete Date</th>
                             <th>Remarks</th>
                             <th>Action</th>
                         </tr>
                     </thead>
                     <tbody id="incoming-expat-table-body">
-                        <tr><td colspan="15" style="text-align:center;">Loading incoming expat roster...</td></tr>
+                        <tr><td colspan="16" style="text-align:center;">Loading incoming expat roster...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -1190,6 +1191,14 @@
                     const uniformStatus = uniformVal === "TRUE" || uniformVal === "YES";
 
                     const drugTest = String(getValue(row, ["Drug Test", "Drug Test Status"])).trim().toUpperCase() || "NOT PAID YET";
+                    
+                    let completeDate = String(getValue(row, ["ID Process Complete Date", "Complete Date", "Completed Date"])).trim();
+                    if ((idProcessStatus === "COMPLETED" || idProcessStatus === "VIP") && (!completeDate || completeDate === "N/A")) {
+                        completeDate = formatDateTimeFull();
+                    } else if (idProcessStatus !== "COMPLETED" && idProcessStatus !== "VIP") {
+                        completeDate = "N/A";
+                    }
+
                     const remarks = String(getValue(row, ["Remarks", "Notes"])).trim().toUpperCase() || "";
 
                     await addDoc(collection(db, "incoming_expats"), {
@@ -1205,6 +1214,7 @@
                         laceStatus: laceStatus,
                         uniformStatus: uniformStatus,
                         drugTest: drugTest,
+                        completeDate: completeDate || "N/A",
                         remarks: remarks,
                         registrationStatus: "PENDING",
                         registerDate: "N/A",
@@ -1311,6 +1321,7 @@
                     laceStatus: false,
                     uniformStatus: false,
                     drugTest: "NOT PAID YET",
+                    completeDate: "N/A",
                     remarks: "",
                     registrationStatus: "PENDING",
                     registerDate: "N/A",
@@ -1330,7 +1341,7 @@
 
         async function loadIncomingExpatTable() {
             const tbody = document.getElementById('incoming-expat-table-body');
-            tbody.innerHTML = `<tr><td colspan="15" style="text-align:center;">Loading incoming expat roster...</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="16" style="text-align:center;">Loading incoming expat roster...</td></tr>`;
 
             try {
                 const querySnapshot = await getDocs(collection(db, "incoming_expats"));
@@ -1338,7 +1349,7 @@
                 expatRecordsCache = {};
 
                 if (querySnapshot.empty) {
-                    tbody.innerHTML = `<tr><td colspan="15" style="text-align:center; color:var(--text-light);">No incoming expat entries found. Add entries from TMS Search or bulk upload above.</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="16" style="text-align:center; color:var(--text-light);">No incoming expat entries found. Add entries from TMS Search or bulk upload above.</td></tr>`;
                     return;
                 }
 
@@ -1364,6 +1375,7 @@
 
                     const laceBadge = rec.laceStatus ? `<span class="status-badge status-approved">YES</span>` : `<span class="status-badge status-pending">NO</span>`;
                     const uniformBadge = rec.uniformStatus ? `<span class="status-badge status-approved">YES</span>` : `<span class="status-badge status-pending">NO</span>`;
+                    const completeDateDisplay = rec.completeDate || "N/A";
 
                     let actionHtml = `<button class="btn btn-clear" style="padding:3px 8px; font-size:11px;" onclick="openExpatEditModal('${rec.id}')">✏️ Edit</button>`;
                     if (regStatus === "DONE REGISTER" || regStatus === "DONE REG." || regStatus === "COMPLETE TMS REGISTRATION" || regStatus === "COMPLETE TMS REG.") {
@@ -1386,13 +1398,14 @@
                             <td>${laceBadge}</td>
                             <td>${uniformBadge}</td>
                             <td>${escapeHtml(rec.drugTest || 'NOT PAID YET')}</td>
+                            <td style="font-size:11px; color:var(--text-light);">${escapeHtml(completeDateDisplay)}</td>
                             <td>${remarkDisplay}</td>
                             <td>${actionHtml}</td>
                         </tr>
                     `;
                 });
             } catch (e) {
-                tbody.innerHTML = `<tr><td colspan="15" style="text-align:center; color:var(--error);">Error loading records: ${e.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="16" style="text-align:center; color:var(--error);">Error loading records: ${e.message}</td></tr>`;
             }
         }
 
@@ -1758,6 +1771,15 @@ ID NAME: ${rec.idName || "N/A"}`;
 
             try {
                 const docRef = doc(db, "incoming_expats", id);
+                const oldRec = expatRecordsCache[id] || {};
+                let completeDate = oldRec.completeDate || "N/A";
+
+                if ((idProcessStatus === "COMPLETED" || idProcessStatus === "VIP") && (oldRec.idProcessStatus !== "COMPLETED" && oldRec.idProcessStatus !== "VIP")) {
+                    completeDate = formatDateTimeFull();
+                } else if (idProcessStatus !== "COMPLETED" && idProcessStatus !== "VIP") {
+                    completeDate = "N/A";
+                }
+
                 await updateDoc(docRef, {
                     passportNumber,
                     section,
@@ -1768,6 +1790,7 @@ ID NAME: ${rec.idName || "N/A"}`;
                     laceStatus,
                     uniformStatus,
                     drugTest,
+                    completeDate,
                     remarks
                 });
 
