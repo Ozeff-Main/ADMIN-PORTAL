@@ -613,7 +613,7 @@
     <div id="add-expat-section-modal" class="modal-overlay hidden">
         <div class="modal-content" style="max-width: 500px;">
             <h3 style="margin-top:0; color:var(--primary); text-align:center;">🏢 Assign Section for Incoming Expat</h3>
-            <p style="text-align:center; color:var(--text-light); font-size:13px;">Please specify the new section request for <strong id="modal-target-name" style="color:var(--text);"></strong>.</p>
+            <p style="text-align:center; color:var(--text-light); font-size:13px;">Please specify the section request for <strong id="modal-target-name" style="color:var(--text);"></strong>.</p>
             
             <input type="hidden" id="modal-expat-ppt">
             <input type="hidden" id="modal-expat-name">
@@ -622,7 +622,7 @@
             <input type="hidden" id="modal-expat-bday">
 
             <div class="form-group" style="margin-top:20px;">
-                <label>New Section Request (e.g. 11A, 11B, Section 12)</label>
+                <label>Section Request (e.g. 11A, 11B, Section 12)</label>
                 <input type="text" id="modal-expat-new-section" placeholder="ENTER SECTION NAME">
             </div>
 
@@ -633,37 +633,29 @@
         </div>
     </div>
 
-    <!-- DUPLICATE DATA WARNING & MANAGEMENT APPROVAL MODAL -->
+    <!-- DUPLICATE / ACTIVE PROCESS BLOCK MODAL (CANCEL ONLY) -->
     <div id="duplicate-expat-modal" class="modal-overlay hidden">
         <div class="modal-content" style="max-width: 550px;">
-            <h3 style="margin-top:0; color:var(--error); text-align:center;">⚠️ Duplicate Record Detected</h3>
+            <h3 style="margin-top:0; color:var(--error); text-align:center;">🚫 Record Already Added in the List</h3>
             <p style="color: var(--text); font-size:14px; text-align:center;">
-                This employee record already exists in the Incoming Expat Employee list (<span id="dup-match-reason" style="font-weight:bold; color:var(--primary);"></span>).
+                This employee data is already added to the Incoming Expat Employee list (<span id="dup-match-reason" style="font-weight:bold; color:var(--primary);"></span>) and is currently being processed.
             </p>
 
-            <div style="background-color: #f8fafc; border: 1px solid var(--border); padding: 15px; border-radius: 6px; margin-bottom: 20px; font-size:13px;">
-                <p style="margin:0 0 8px 0;"><strong>Existing Record Details:</strong></p>
+            <div style="background-color: #f8fafc; border: 1px solid var(--border); padding: 15px; border-radius: 6px; margin-bottom: 20px; font-size:13px; line-height: 1.7;">
+                <p style="margin:0 0 8px 0; color:var(--primary);"><strong>Existing Record Details:</strong></p>
                 <div><strong>Name:</strong> <span id="dup-existing-name">-</span></div>
-                <div><strong>Passport:</strong> <span id="dup-existing-passport">-</span></div>
-                <div><strong>TMS ID:</strong> <span id="dup-existing-tmsid">-</span></div>
-                <div><strong>Current Section:</strong> <span id="dup-existing-section">-</span></div>
+                <div><strong>Passport Number:</strong> <span id="dup-existing-passport">-</span></div>
+                <div><strong>TMS ID Number:</strong> <span id="dup-existing-tmsid">-</span></div>
+                <div><strong>Assigned Section:</strong> <span id="dup-existing-section">-</span></div>
+                <div><strong>ID Process Status:</strong> <span id="dup-existing-status" class="status-badge status-pending">-</span></div>
             </div>
 
-            <p style="font-size:13px; color:var(--text-light); text-align:center;">
-                Is this a request for another section? If confirmed by top management, the existing record status will be set to <strong>CANCEL</strong> and a new record will be added for the new section.
+            <p style="font-size:13px; color:var(--error); text-align:center; font-weight:500;">
+                Note: Duplicate entries cannot be added while the ID Process Status is <strong>FOR ID</strong> or <strong>CHECKING</strong>. You may only add this employee under a new section once their previous status is marked as <strong>COMPLETED</strong>.
             </p>
 
-            <input type="hidden" id="dup-target-id">
-            <input type="hidden" id="dup-new-ppt">
-            <input type="hidden" id="dup-new-name">
-            <input type="hidden" id="dup-new-section">
-            <input type="hidden" id="dup-new-tms-status">
-            <input type="hidden" id="dup-new-tms-id">
-            <input type="hidden" id="dup-new-bday">
-
-            <div style="display:flex; gap:10px; margin-top:20px;">
-                <button class="btn btn-admin" style="flex:1; font-size:13px;" onclick="confirmManagementApproval()">✅ Approve & Update (Set Old to CANCEL)</button>
-                <button class="btn btn-danger" style="flex:1;" onclick="closeDuplicateModal()">Cancel Request</button>
+            <div style="display:flex; margin-top:20px;">
+                <button class="btn btn-danger" style="width:100%; padding:12px;" onclick="closeDuplicateModal()">Cancel</button>
             </div>
         </div>
     </div>
@@ -1168,14 +1160,14 @@
             const newSection = document.getElementById('modal-expat-new-section').value.trim().toUpperCase();
 
             if (!newSection) {
-                alert("Please enter the new section request.");
+                alert("Please enter the section request.");
                 return;
             }
 
             try {
-                // Fetch all current incoming expats to check for duplicates
+                // Fetch all current incoming expats to check for active records
                 const querySnapshot = await getDocs(collection(db, "incoming_expats"));
-                let existingMatch = null;
+                let activeDuplicateMatch = null;
                 let matchReason = "";
 
                 querySnapshot.forEach(docSnap => {
@@ -1184,53 +1176,43 @@
                     const recTmsId = String(rec.tmsIdNumber || "").trim().toUpperCase();
                     const recName = String(rec.name || "").trim().toUpperCase();
                     const recBday = String(rec.birthdate || "").trim().toUpperCase();
-                    const recSection = String(rec.section || "").trim().toUpperCase();
                     const recStatus = String(rec.idProcessStatus || "").trim().toUpperCase();
 
-                    // Ignore cancelled records when checking duplicates
-                    if (recStatus === "CANCEL") return;
-
-                    const isPptMatch = pptNo !== "N/A" && recPpt === pptNo;
-                    const isTmsIdMatch = tmsIdNumber !== "N/A" && recTmsId === tmsIdNumber;
-                    const isNameDobMatch = name !== "N/A" && recName === name && bday !== "" && recBday === bday;
-
-                    if (!existingMatch && (isPptMatch || isTmsIdMatch || isNameDobMatch)) {
-                        existingMatch = { ...rec, recSection };
-                        if (isPptMatch) matchReason = "Matching Passport Number";
-                        else if (isTmsIdMatch) matchReason = "Matching TMS ID Number";
-                        else matchReason = "Matching Name and Date of Birth";
-                    }
-                });
-
-                if (existingMatch) {
-                    // Check if same section
-                    if (existingMatch.recSection === newSection) {
-                        alert(`❌ Rejected: This employee is already added to the Incoming Expat list under Section "${newSection}". Note: This record already exists in the portal.`);
-                        closeAddExpatModal();
+                    // Allow adding if previous record is COMPLETED or CANCEL
+                    if (recStatus === "COMPLETED" || recStatus === "COMPLETE" || recStatus === "CANCEL") {
                         return;
                     }
 
-                    // Different section -> Open duplicate confirmation modal for management approval
-                    closeAddExpatModal();
-                    document.getElementById('dup-target-id').value = existingMatch.id;
-                    document.getElementById('dup-match-reason').textContent = matchReason;
-                    document.getElementById('dup-existing-name').textContent = existingMatch.name || "N/A";
-                    document.getElementById('dup-existing-passport').textContent = existingMatch.passportNumber || "N/A";
-                    document.getElementById('dup-existing-tmsid').textContent = existingMatch.tmsIdNumber || "N/A";
-                    document.getElementById('dup-existing-section').textContent = existingMatch.section || "N/A";
+                    // Block if ID Process Status is FOR ID or CHECKING (or any non-completed active state)
+                    if (recStatus === "FOR ID" || recStatus === "CHECKING") {
+                        const isPptMatch = pptNo !== "N/A" && recPpt === pptNo;
+                        const isTmsIdMatch = tmsIdNumber !== "N/A" && recTmsId === tmsIdNumber;
+                        const isNameDobMatch = name !== "N/A" && recName === name && bday !== "" && recBday === bday;
 
-                    document.getElementById('dup-new-ppt').value = pptNo;
-                    document.getElementById('dup-new-name').value = name;
-                    document.getElementById('dup-new-section').value = newSection;
-                    document.getElementById('dup-new-tms-status').value = tmsStatus;
-                    document.getElementById('dup-new-tms-id').value = tmsIdNumber;
-                    document.getElementById('dup-new-bday').value = bday;
+                        if (!activeDuplicateMatch && (isPptMatch || isTmsIdMatch || isNameDobMatch)) {
+                            activeDuplicateMatch = rec;
+                            if (isPptMatch) matchReason = "Matching Passport Number";
+                            else if (isTmsIdMatch) matchReason = "Matching TMS ID Number";
+                            else matchReason = "Matching Name and Date of Birth";
+                        }
+                    }
+                });
+
+                if (activeDuplicateMatch) {
+                    // Open Cancel-Only Warning Modal informing the record is already added in the list
+                    closeAddExpatModal();
+                    document.getElementById('dup-match-reason').textContent = matchReason;
+                    document.getElementById('dup-existing-name').textContent = activeDuplicateMatch.name || "N/A";
+                    document.getElementById('dup-existing-passport').textContent = activeDuplicateMatch.passportNumber || "N/A";
+                    document.getElementById('dup-existing-tmsid').textContent = activeDuplicateMatch.tmsIdNumber || "N/A";
+                    document.getElementById('dup-existing-section').textContent = activeDuplicateMatch.section || "N/A";
+                    document.getElementById('dup-existing-status').textContent = activeDuplicateMatch.idProcessStatus || "CHECKING";
 
                     document.getElementById('duplicate-expat-modal').classList.remove('hidden');
                     return;
                 }
 
-                // No duplicate found, proceed with normal add
+                // Proceed to add if no active FOR ID / CHECKING record exists (or if previous record was COMPLETED)
                 const declareDate = formatDateTimeFull();
                 await addDoc(collection(db, "incoming_expats"), {
                     declareDate: declareDate,
@@ -1260,57 +1242,6 @@
 
         window.closeDuplicateModal = function() {
             document.getElementById('duplicate-expat-modal').classList.add('hidden');
-        };
-
-        window.confirmManagementApproval = async function() {
-            const oldId = document.getElementById('dup-target-id').value;
-            const pptNo = document.getElementById('dup-new-ppt').value;
-            const name = document.getElementById('dup-new-name').value;
-            const newSection = document.getElementById('dup-new-section').value;
-            const tmsStatus = document.getElementById('dup-new-tms-status').value;
-            const tmsIdNumber = document.getElementById('dup-new-tms-id').value;
-            const bday = document.getElementById('dup-new-bday').value;
-
-            try {
-                // 1. Update old record status to CANCEL and add cancellation remark
-                const oldDocRef = doc(db, "incoming_expats", oldId);
-                const oldRec = expatRecordsCache[oldId] || {};
-                const oldRemarks = oldRec.remarks ? oldRec.remarks + " | " : "";
-                const cancelRemark = oldRemarks + "Cancelled due to newer section request approved by management.";
-
-                await updateDoc(oldDocRef, {
-                    idProcessStatus: "CANCEL",
-                    remarks: cancelRemark
-                });
-
-                // 2. Add new record with new section request and approved remark
-                const declareDate = formatDateTimeFull();
-                const approvalRemark = "Approved by management for new section request.";
-
-                await addDoc(collection(db, "incoming_expats"), {
-                    declareDate: declareDate,
-                    passportNumber: pptNo,
-                    section: newSection,
-                    name: name,
-                    tmsRecordStatus: tmsStatus,
-                    tmsIdNumber: tmsIdNumber,
-                    birthdate: bday,
-                    idProcessStatus: "CHECKING",
-                    uniformSize: "M",
-                    laceStatus: false,
-                    uniformStatus: false,
-                    drugTest: "NOT PAID YET",
-                    remarks: approvalRemark,
-                    registrationStatus: "PENDING",
-                    registerDate: "N/A",
-                    createdAt: new Date().getTime()
-                });
-
-                closeDuplicateModal();
-                alert(`Top management approval confirmed! Previous record set to CANCEL, and new record successfully added under section ${newSection}.`);
-            } catch (e) {
-                alert("Error processing management approval: " + e.message);
-            }
         };
 
         async function loadIncomingExpatTable() {
