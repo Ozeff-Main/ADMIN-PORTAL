@@ -252,6 +252,7 @@
             border-radius: 12px;
             font-size: 11px;
             font-weight: bold;
+            white-space: nowrap; /* Forces badge text onto a single straight line */
         }
         .status-approved { background-color: #d1fae5; color: #065f46; }
         .status-pending { background-color: #fef3c7; color: #92400e; }
@@ -491,10 +492,24 @@
                 <button class="btn btn-clear" style="padding: 10px 20px;" onclick="document.getElementById('expat-search-input').value=''; resetAndLoadIncomingExpatTable();">Clear</button>
             </div>
 
+            <!-- NEW: ID PROCESSING SELECTED QUICK-LIST DRAWER -->
+            <div id="id-processing-drawer" style="background-color: #eff6ff; border: 2px solid var(--primary); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <h3 style="margin: 0; color: var(--primary); font-size: 16px;">📇 ID Processing Selected Quick-List (<span id="selected-count-badge">0</span> selected)</h3>
+                    <div>
+                        <button class="btn btn-clear" style="padding: 5px 12px; font-size: 12px;" onclick="clearAllSelections()">Clear Selections</button>
+                    </div>
+                </div>
+                <div id="selected-quick-list-content" style="font-size: 13px; color: var(--text-light); max-height: 200px; overflow-y: auto;">
+                    No employees currently checked. Check employee rows below to add them to this quick-list for rapid access & multi-editing!
+                </div>
+            </div>
+
             <div style="overflow-x: auto; margin-top: 15px;">
                 <table>
                     <thead>
                         <tr>
+                            <th style="width: 40px;"><input type="checkbox" id="select-all-checkbox" onclick="toggleSelectAll(this)"></th>
                             <th>Declare Date</th>
                             <th>Passport Number</th>
                             <th>Section</th>
@@ -514,7 +529,7 @@
                         </tr>
                     </thead>
                     <tbody id="incoming-expat-table-body">
-                        <tr><td colspan="16" style="text-align:center;">Loading incoming expat roster...</td></tr>
+                        <tr><td colspan="17" style="text-align:center;">Loading incoming expat roster...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -1089,6 +1104,7 @@
         let globalEmployeeRecords = [];
         let expatRecordsCache = {};
         let sectionRecordsCache = {};
+        let selectedExpatIds = new Set(); // Stores checked IDs for ID Processing quick-list
 
         // Pagination state variables
         let currentPage = 1;
@@ -1308,7 +1324,7 @@
             }
 
             const tbody = document.getElementById('incoming-expat-table-body');
-            tbody.innerHTML = `<tr><td colspan="16" style="text-align:center;">Searching records for "${queryText}"...</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="17" style="text-align:center;">Searching records for "${queryText}"...</td></tr>`;
 
             try {
                 const collRef = collection(db, "incoming_expats");
@@ -1324,7 +1340,7 @@
                 nameSnap.forEach(docSnap => matchedMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() }));
 
                 if (matchedMap.size === 0) {
-                    tbody.innerHTML = `<tr><td colspan="16" style="text-align:center; color:var(--text-light);">No exact matching records found for "${queryText}".</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="17" style="text-align:center; color:var(--text-light);">No exact matching records found for "${queryText}".</td></tr>`;
                     document.getElementById('prev-page-btn').disabled = true;
                     document.getElementById('next-page-btn').disabled = true;
                     document.getElementById('page-indicator').textContent = `Search Results`;
@@ -1340,13 +1356,13 @@
                 document.getElementById('next-page-btn').disabled = true;
                 document.getElementById('page-indicator').textContent = `Found ${matchedMap.size} result(s)`;
             } catch (e) {
-                tbody.innerHTML = `<tr><td colspan="16" style="text-align:center; color:var(--error);">Error searching records: ${e.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="17" style="text-align:center; color:var(--error);">Error searching records: ${e.message}</td></tr>`;
             }
         };
 
         async function loadIncomingExpatTable(cursor = null, direction = 'initial') {
             const tbody = document.getElementById('incoming-expat-table-body');
-            tbody.innerHTML = `<tr><td colspan="16" style="text-align:center;">Loading incoming expat roster... (Page ${currentPage})</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="17" style="text-align:center;">Loading incoming expat roster... (Page ${currentPage})</td></tr>`;
 
             try {
                 let q;
@@ -1365,7 +1381,7 @@
                 expatRecordsCache = {};
 
                 if (querySnapshot.empty) {
-                    tbody.innerHTML = `<tr><td colspan="16" style="text-align:center; color:var(--text-light);">No incoming expat entries found on this page.</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="17" style="text-align:center; color:var(--text-light);">No incoming expat entries found on this page.</td></tr>`;
                     document.getElementById('next-page-btn').disabled = true;
                     document.getElementById('prev-page-btn').disabled = currentPage <= 1;
                     document.getElementById('page-indicator').textContent = `Page ${currentPage}`;
@@ -1390,7 +1406,7 @@
                 document.getElementById('page-indicator').textContent = `Page ${currentPage}`;
 
             } catch (e) {
-                tbody.innerHTML = `<tr><td colspan="16" style="text-align:center; color:var(--error);">Error loading records: ${e.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="17" style="text-align:center; color:var(--error);">Error loading records: ${e.message}</td></tr>`;
             }
         }
 
@@ -1411,6 +1427,8 @@
             const declareDateDisplay = (rec.declareDate && rec.declareDate !== "N/A") ? formatDateTimeFull(rec.declareDate) : "N/A";
             const completeDateDisplay = (rec.completeDate && rec.completeDate !== "N/A") ? formatDateTimeFull(rec.completeDate) : "N/A";
 
+            const isChecked = selectedExpatIds.has(rec.id) ? 'checked' : '';
+
             let actionHtml = `<button class="btn btn-clear" style="padding:3px 8px; font-size:11px;" onclick="openExpatEditModal('${rec.id}')">✏️ Edit</button>`;
             if (regStatus === "DONE REGISTER" || regStatus === "DONE REG." || regStatus === "COMPLETE TMS REGISTRATION" || regStatus === "COMPLETE TMS REG.") {
                 actionHtml += ` <button class="btn" style="padding:3px 8px; font-size:11px; background-color:#7c3aed;" onclick="openAdminViewRegisteredModal('${rec.id}')">👁️ View</button>`;
@@ -1419,6 +1437,7 @@
 
             tbody.innerHTML += `
                 <tr>
+                    <td><input type="checkbox" class="expat-row-checkbox" data-id="${rec.id}" ${isChecked} onclick="toggleExpatSelection(this, '${rec.id}')"></td>
                     <td style="font-size:11px;">${escapeHtml(declareDateDisplay)}</td>
                     <td><strong style="color:var(--primary);">${escapeHtml(rec.passportNumber)}</strong></td>
                     <td>${escapeHtml(rec.section)}</td>
@@ -1438,6 +1457,72 @@
                 </tr>
             `;
         }
+
+        /* ID PROCESSING SELECTION & DRAWER LOGIC */
+        window.toggleExpatSelection = function(checkbox, id) {
+            if (checkbox.checked) {
+                selectedExpatIds.add(id);
+            } else {
+                selectedExpatIds.delete(id);
+            }
+            updateSelectedQuickListDrawer();
+        };
+
+        window.toggleSelectAll = function(selectAllCheckbox) {
+            const checkboxes = document.querySelectorAll('.expat-row-checkbox');
+            checkboxes.forEach(cb => {
+                cb.checked = selectAllCheckbox.checked;
+                const id = cb.getAttribute('data-id');
+                if (selectAllCheckbox.checked) {
+                    selectedExpatIds.add(id);
+                } else {
+                    selectedExpatIds.delete(id);
+                }
+            });
+            updateSelectedQuickListDrawer();
+        };
+
+        window.clearAllSelections = function() {
+            selectedExpatIds.clear();
+            document.querySelectorAll('.expat-row-checkbox').forEach(cb => cb.checked = false);
+            const selectAll = document.getElementById('select-all-checkbox');
+            if (selectAll) selectAll.checked = false;
+            updateSelectedQuickListDrawer();
+        };
+
+        function updateSelectedQuickListDrawer() {
+            const countBadge = document.getElementById('selected-count-badge');
+            const contentContainer = document.getElementById('selected-quick-list-content');
+            countBadge.textContent = selectedExpatIds.size;
+
+            if (selectedExpatIds.size === 0) {
+                contentContainer.innerHTML = 'No employees currently checked. Check employee rows below to add them to this quick-list for rapid access & multi-editing!';
+                return;
+            }
+
+            let html = '<div style="display: flex; flex-wrap: wrap; gap: 8px;">';
+            selectedExpatIds.forEach(id => {
+                const rec = expatRecordsCache[id];
+                const name = rec ? rec.name : `ID: ${id.substring(0,6)}...`;
+                const passport = rec ? rec.passportNumber : '';
+                html += `
+                    <div style="background: white; border: 1px solid var(--border); padding: 6px 12px; border-radius: 6px; display: flex; align-items: center; gap: 8px; font-weight: 600;">
+                        <span>👤 ${escapeHtml(name)} (${escapeHtml(passport)})</span>
+                        <button class="btn btn-clear" style="padding: 2px 6px; font-size: 11px;" onclick="openExpatEditModal('${id}')">✏️ Edit</button>
+                        <button class="btn btn-danger" style="padding: 2px 6px; font-size: 11px;" onclick="removeQuickSelection('${id}')">✕</button>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            contentContainer.innerHTML = html;
+        }
+
+        window.removeQuickSelection = function(id) {
+            selectedExpatIds.delete(id);
+            const cb = document.querySelector(`.expat-row-checkbox[data-id="${id}"]`);
+            if (cb) cb.checked = false;
+            updateSelectedQuickListDrawer();
+        };
 
         window.openAddExpatModal = function(pptNo, office, name, tmsStatus, tmsIdNumber, birthdate = "") {
             document.getElementById('modal-expat-ppt').value = pptNo || "N/A";
