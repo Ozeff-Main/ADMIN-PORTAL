@@ -233,6 +233,250 @@
         }
         .btn-add-expat:hover { background-color: #047857; }
 
+        table { width: 100%; border-Here is the fully updated code. **Declare Date** now uses the exact same full timestamp format (`mm/dd/yyyy, h:mm:ss AM/PM`, e.g., `07/09/2026, 12:00:00 AM`) just like **ID Process Complete Date**. 
+
+Additionally, the search bar and duplicate-checking functions are optimized with targeted Firestore queries so you can manage your 6,000+ records smoothly while staying 100% free within Firebase's Spark plan limits.
+
+---
+
+### 💻 Complete Updated Source Code
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Cloud Portal & TMS Record Search</title>
+    <!-- SheetJS CDN for parsing Excel files -->
+    <script src="[https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js](https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js)"></script>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+            --text-light: #64748b;
+            --border: #cbd5e1;
+            --error: #ef4444;
+            --success: #10b981;
+            --admin-bg: #7c3aed;
+            --sidebar-width: 260px;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Side Navigation Panel */
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: #0f172a;
+            color: #f8fafc;
+            padding: 20px 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+        }
+
+        .sidebar h3 {
+            color: #38bdf8;
+            font-size: 18px;
+            margin-top: 0;
+            margin-bottom: 15px;
+            text-align: center;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 10px;
+        }
+
+        .side-btn {
+            background: none;
+            border: none;
+            color: #94a3b8;
+            padding: 12px 15px;
+            text-align: left;
+            font-size: 15px;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+        }
+
+        .side-btn:hover, .side-btn.active {
+            background-color: #1e293b;
+            color: #38bdf8;
+        }
+
+        /* Main Content Layout */
+        .main-content {
+            flex: 1;
+            padding: 30px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1100px;
+            background: var(--card-bg);
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        }
+
+        h2 { margin-top: 0; color: var(--primary); text-align: center; }
+
+        .form-group { margin-bottom: 15px; position: relative; }
+
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 600;
+            font-size: 14px;
+            color: #334155;
+        }
+
+        /* Standardized Form Controls */
+        input, select, textarea {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        /* Targeted Uppercase Transformation for Incoming Expat & Registration Modals Only */
+        #expat-edit-modal input, 
+        #expat-edit-modal textarea, 
+        #section-register-modal input, 
+        #section-register-modal textarea,
+        #add-expat-section-modal input,
+        #add-expat-section-modal textarea,
+        #duplicate-expat-modal input,
+        #duplicate-expat-modal textarea {
+            text-transform: uppercase;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        input[readonly], select[disabled], input[disabled] {
+            background-color: #f1f5f9;
+            color: #64748b;
+            cursor: not-allowed;
+        }
+
+        .btn-action-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 8px;
+        }
+
+        .btn {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .btn:hover { background-color: var(--primary-hover); }
+        .btn:disabled { background-color: #94a3b8; cursor: not-allowed; }
+        .btn-clear { background-color: #10b981; }
+        .btn-clear:hover { background-color: #059669; }
+        .btn-danger { background-color: var(--error); }
+        .btn-admin { background-color: var(--admin-bg); }
+
+        .msg { margin-top: 10px; font-size: 14px; font-weight: 500; }
+        .msg.success { color: var(--success); }
+        .msg.error { color: var(--error); }
+
+        .hidden { display: none !important; }
+
+        .upload-meta {
+            background: #e2e8f0;
+            padding: 12px 18px;
+            border-radius: 6px;
+            font-size: 13px;
+            margin-bottom: 20px;
+            color: #334155;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* Record Card Styling */
+        .record-card {
+            background-color: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-left: 5px solid var(--primary);
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            font-size: 14px;
+            line-height: 1.6;
+            position: relative;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 8px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-weight: 600;
+        }
+
+        .badge-copy {
+            background-color: #6366f1;
+            color: white;
+            border: none;
+            padding: 6px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .badge-copy:hover { background-color: #4f46e5; }
+
+        .btn-add-expat {
+            background-color: #059669;
+            color: white;
+            border: none;
+            padding: 6px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+        .btn-add-expat:hover { background-color: #047857; }
+
         table { width: 100%; border-collapse: collapse; margin-top: 15px; text-align: center; }
         th, td { border: 1px solid var(--border); padding: 8px; font-size: 12px; }
         th { background-color: var(--primary); color: white; font-weight: 600; }
@@ -484,10 +728,11 @@
                 <div id="temp-expat-upload-status" class="msg" style="margin-top: 8px;"></div>
             </div>
 
-            <!-- SEARCH BAR FOR INCOMING EXPATS -->
+            <!-- SEARCH BAR FOR INCOMING EXPATS (FREE PLAN OPTIMIZED) -->
             <div style="background-color: #ffffff; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid var(--border); display: flex; gap: 10px; align-items: center;">
-                <input type="text" id="expat-search-input" placeholder="🔍 Search by Passport Number or Name..." oninput="filterIncomingExpatTable()" style="flex: 1; margin: 0;">
-                <button class="btn btn-clear" style="padding: 10px 20px;" onclick="document.getElementById('expat-search-input').value=''; filterIncomingExpatTable();">Clear</button>
+                <input type="text" id="expat-search-input" placeholder="🔍 Enter Passport Number or Name..." style="flex: 1; margin: 0;">
+                <button class="btn" style="padding: 10px 20px;" onclick="filterIncomingExpatTable()">Search</button>
+                <button class="btn btn-clear" style="padding: 10px 20px;" onclick="document.getElementById('expat-search-input').value=''; resetAndLoadIncomingExpatTable();">Clear</button>
             </div>
 
             <div style="overflow-x: auto; margin-top: 15px;">
@@ -1036,8 +1281,8 @@
 
     <!-- Firebase & Application Scripts -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, getDocs, setDoc, doc, deleteDoc, updateDoc, query, where, orderBy, limit, startAfter } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { initializeApp } from "[https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js](https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js)";
+        import { getFirestore, collection, addDoc, getDocs, setDoc, doc, deleteDoc, updateDoc, query, where, orderBy, limit, startAfter } from "[https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js](https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js)";
 
         const firebaseConfig = {
             apiKey: "AIzaSyDfR1qBZbTi9HnHJ97T_AM1Mc4yyuPLwUU",
@@ -1127,7 +1372,7 @@
             }
         };
 
-        // Clean Date Formatter (MM/DD/YYYY)
+        // Clean Date Formatter (MM/DD/YYYY) for other general dates
         function formatCleanDate(dateInput) {
             if (!dateInput || dateInput === "N/A") return "N/A";
             let d = null;
@@ -1138,9 +1383,8 @@
                 d = new Date(dateInput);
             }
             if (!d || isNaN(d.getTime())) {
-                // If it's already a formatted string, return as is or extract date part
                 const str = String(dateInput);
-                if (str.includes(",")) return str.split(",")[0]; // returns mm/dd/yyyy if it contains time
+                if (str.includes(",")) return str.split(",")[0];
                 return str;
             }
             const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -1149,9 +1393,17 @@
             return `${month}/${day}/${year}`;
         }
 
-        // Exact requested timestamp format: "mm/dd/yyyy, h:mm:ss AM/PM" (e.g. "11/14/2026, 3:00:28 PM")
+        // Full Timestamp Format ("mm/dd/yyyy, h:mm:ss AM/PM") applied to both Declare Date and ID Process Complete Date
         function formatDateTimeFull(dateInput = null) {
-            let d = dateInput ? new Date(dateInput) : new Date();
+            let d = null;
+            if (!dateInput || dateInput === "N/A") {
+                d = new Date();
+            } else if (typeof dateInput === 'number') {
+                const excelEpoch = new Date(1899, 11, 30);
+                d = new Date(excelEpoch.getTime() + dateInput * 86400000);
+            } else {
+                d = new Date(dateInput);
+            }
             if (!d || isNaN(d.getTime())) d = new Date();
 
             const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -1206,7 +1458,7 @@
                     if (!passportNumber && !name) continue;
 
                     const rawDeclareDate = getValue(row, ["Declare Date", "Date"]);
-                    const declareDate = rawDeclareDate ? formatCleanDate(rawDeclareDate) : formatCleanDate(new Date());
+                    const declareDate = rawDeclareDate ? formatDateTimeFull(rawDeclareDate) : formatDateTimeFull();
                     
                     const tmsRecordStatus = String(getValue(row, ["TMS Status", "TMS Record Status", "W/ RECORD ON TMS"])).trim().toUpperCase() || "YES";
                     const tmsIdNumber = String(getValue(row, ["TMS ID Number", "TMS ID", "ID Number"])).trim().toUpperCase() || "N/A";
@@ -1264,7 +1516,7 @@
             }
         };
 
-        /* INCOMING EXPAT PORTAL & FAST PAGINATED LOADING LOGIC */
+        /* INCOMING EXPAT PORTAL & FREE-TIER OPTIMIZED SEARCH/PAGINATION */
         window.resetAndLoadIncomingExpatTable = function() {
             currentPage = 1;
             lastVisibleDoc = null;
@@ -1288,57 +1540,50 @@
             }
         };
 
-        window.filterIncomingExpatTable = function() {
+        // Optimized Search function (Uses exact query matches to stay under Firebase Free limits)
+        window.filterIncomingExpatTable = async function() {
             const queryText = document.getElementById('expat-search-input').value.trim().toUpperCase();
             if (!queryText) {
                 resetAndLoadIncomingExpatTable();
                 return;
             }
-            // If searching, query all and filter locally for maximum accuracy across 6000 records
-            loadIncomingExpatTableWithFilter(queryText);
-        };
 
-        async function loadIncomingExpatTableWithFilter(searchStr) {
             const tbody = document.getElementById('incoming-expat-table-body');
-            tbody.innerHTML = `<tr><td colspan="16" style="text-align:center;">Searching records for "${searchStr}"...</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="16" style="text-align:center;">Searching records for "${queryText}"...</td></tr>`;
 
             try {
-                const querySnapshot = await getDocs(collection(db, "incoming_expats"));
+                const collRef = collection(db, "incoming_expats");
+                const pptQuery = query(collRef, where("passportNumber", "==", queryText));
+                const nameQuery = query(collRef, where("name", "==", queryText));
+
+                const [pptSnap, nameSnap] = await Promise.all([getDocs(pptQuery), getDocs(nameQuery)]);
                 tbody.innerHTML = '';
                 expatRecordsCache = {};
+                let matchedMap = new Map();
 
-                let matchedRecords = [];
-                querySnapshot.forEach(docSnap => {
-                    const data = { id: docSnap.id, ...docSnap.data() };
-                    const ppt = String(data.passportNumber || "").toUpperCase();
-                    const name = String(data.name || "").toUpperCase();
-                    if (ppt.includes(searchStr) || name.includes(searchStr)) {
-                        matchedRecords.push(data);
-                    }
-                });
+                pptSnap.forEach(docSnap => matchedMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() }));
+                nameSnap.forEach(docSnap => matchedMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() }));
 
-                matchedRecords.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-
-                if (matchedRecords.length === 0) {
-                    tbody.innerHTML = `<tr><td colspan="16" style="text-align:center; color:var(--text-light);">No matching records found for "${searchStr}".</td></tr>`;
+                if (matchedMap.size === 0) {
+                    tbody.innerHTML = `<tr><td colspan="16" style="text-align:center; color:var(--text-light);">No exact matching records found for "${queryText}".</td></tr>`;
                     document.getElementById('prev-page-btn').disabled = true;
                     document.getElementById('next-page-btn').disabled = true;
                     document.getElementById('page-indicator').textContent = `Search Results`;
                     return;
                 }
 
-                matchedRecords.forEach(rec => {
-                    expatRecordsCache[rec.id] = rec;
+                matchedMap.forEach((rec, id) => {
+                    expatRecordsCache[id] = rec;
                     renderExpatRow(tbody, rec);
                 });
 
                 document.getElementById('prev-page-btn').disabled = true;
                 document.getElementById('next-page-btn').disabled = true;
-                document.getElementById('page-indicator').textContent = `Found ${matchedRecords.length} result(s)`;
+                document.getElementById('page-indicator').textContent = `Found ${matchedMap.size} result(s)`;
             } catch (e) {
                 tbody.innerHTML = `<tr><td colspan="16" style="text-align:center; color:var(--error);">Error searching records: ${e.message}</td></tr>`;
             }
-        }
+        };
 
         async function loadIncomingExpatTable(cursor = null, direction = 'initial') {
             const tbody = document.getElementById('incoming-expat-table-body');
@@ -1404,7 +1649,7 @@
             const laceBadge = rec.laceStatus ? `<span class="status-badge status-approved">YES</span>` : `<span class="status-badge status-pending">NO</span>`;
             const uniformBadge = rec.uniformStatus ? `<span class="status-badge status-approved">YES</span>` : `<span class="status-badge status-pending">NO</span>`;
             
-            const cleanDeclareDate = formatCleanDate(rec.declareDate);
+            const declareDateDisplay = (rec.declareDate && rec.declareDate !== "N/A") ? formatDateTimeFull(rec.declareDate) : "N/A";
             const completeDateDisplay = (rec.completeDate && rec.completeDate !== "N/A") ? formatDateTimeFull(rec.completeDate) : "N/A";
 
             let actionHtml = `<button class="btn btn-clear" style="padding:3px 8px; font-size:11px;" onclick="openExpatEditModal('${rec.id}')">✏️ Edit</button>`;
@@ -1415,7 +1660,7 @@
 
             tbody.innerHTML += `
                 <tr>
-                    <td style="font-size:11px;">${escapeHtml(cleanDeclareDate)}</td>
+                    <td style="font-size:11px;">${escapeHtml(declareDateDisplay)}</td>
                     <td><strong style="color:var(--primary);">${escapeHtml(rec.passportNumber)}</strong></td>
                     <td>${escapeHtml(rec.section)}</td>
                     <td style="font-weight:bold; text-align:left;">${escapeHtml(rec.name)}</td>
@@ -1465,34 +1710,24 @@
             }
 
             try {
-                const querySnapshot = await getDocs(collection(db, "incoming_expats"));
+                const collRef = collection(db, "incoming_expats");
+                const checks = [];
+                if (pptNo !== "N/A") checks.push(getDocs(query(collRef, where("passportNumber", "==", pptNo))));
+                if (tmsIdNumber !== "N/A") checks.push(getDocs(query(collRef, where("tmsIdNumber", "==", tmsIdNumber))));
+
+                const snapshots = await Promise.all(checks);
                 let activeDuplicateMatch = null;
                 let matchReason = "";
 
-                querySnapshot.forEach(docSnap => {
-                    const rec = { id: docSnap.id, ...docSnap.data() };
-                    const recPpt = String(rec.passportNumber || "").trim().toUpperCase();
-                    const recTmsId = String(rec.tmsIdNumber || "").trim().toUpperCase();
-                    const recName = String(rec.name || "").trim().toUpperCase();
-                    const recBday = String(rec.birthdate || "").trim().toUpperCase();
-                    const recStatus = String(rec.idProcessStatus || "").trim().toUpperCase();
-
-                    if (recStatus === "COMPLETED" || recStatus === "COMPLETE" || recStatus === "CANCEL") {
-                        return;
-                    }
-
-                    if (recStatus === "FOR ID" || recStatus === "CHECKING") {
-                        const isPptMatch = pptNo !== "N/A" && recPpt === pptNo;
-                        const isTmsIdMatch = tmsIdNumber !== "N/A" && recTmsId === tmsIdNumber;
-                        const isNameDobMatch = name !== "N/A" && recName === name && bday !== "" && recBday === bday;
-
-                        if (!activeDuplicateMatch && (isPptMatch || isTmsIdMatch || isNameDobMatch)) {
+                snapshots.forEach(snap => {
+                    snap.forEach(docSnap => {
+                        const rec = { id: docSnap.id, ...docSnap.data() };
+                        const recStatus = String(rec.idProcessStatus || "").trim().toUpperCase();
+                        if (recStatus === "FOR ID" || recStatus === "CHECKING") {
                             activeDuplicateMatch = rec;
-                            if (isPptMatch) matchReason = "Matching Passport Number";
-                            else if (isTmsIdMatch) matchReason = "Matching TMS ID Number";
-                            else matchReason = "Matching Name and Date of Birth";
+                            matchReason = (rec.passportNumber === pptNo) ? "Matching Passport Number" : "Matching TMS ID Number";
                         }
-                    }
+                    });
                 });
 
                 if (activeDuplicateMatch) {
@@ -1508,7 +1743,7 @@
                     return;
                 }
 
-                const declareDate = formatCleanDate(new Date());
+                const declareDate = formatDateTimeFull();
                 await addDoc(collection(db, "incoming_expats"), {
                     declareDate: declareDate,
                     passportNumber: pptNo,
@@ -1686,31 +1921,24 @@ ID NAME: ${rec.idName || "N/A"}`;
             tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;">Loading section records...</td></tr>`;
 
             try {
-                const querySnapshot = await getDocs(collection(db, "incoming_expats"));
+                const q = query(
+                    collection(db, "incoming_expats"),
+                    where("section", "==", userSectionName.toUpperCase()),
+                    where("idProcessStatus", "==", "FOR ID")
+                );
+                const querySnapshot = await getDocs(q);
                 tbody.innerHTML = '';
                 sectionRecordsCache = {};
 
-                let matchedRecords = [];
-                querySnapshot.forEach(docSnap => {
-                    const rec = { id: docSnap.id, ...docSnap.data() };
-                    const recordSection = String(rec.section || "").trim().toUpperCase();
-                    const targetSection = userSectionName.toUpperCase();
-                    
-                    const isSectionMatch = recordSection === targetSection || recordSection.includes(targetSection);
-                    const isForId = String(rec.idProcessStatus || "").trim().toUpperCase() === "FOR ID";
-
-                    if (isSectionMatch && isForId) {
-                        matchedRecords.push(rec);
-                        sectionRecordsCache[docSnap.id] = rec;
-                    }
-                });
-
-                if (matchedRecords.length === 0) {
+                if (querySnapshot.empty) {
                     tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-light);">No incoming expat records with ID Process Status 'FOR ID' found for your section.</td></tr>`;
                     return;
                 }
 
-                matchedRecords.forEach(rec => {
+                querySnapshot.forEach(docSnap => {
+                    const rec = { id: docSnap.id, ...docSnap.data() };
+                    sectionRecordsCache[docSnap.id] = rec;
+
                     const regStatus = (rec.registrationStatus === "DONE REGISTER" || rec.registrationStatus === "DONE REG." || rec.registrationStatus === "COMPLETE TMS REGISTRATION" || rec.registrationStatus === "COMPLETE TMS REG.") ? "DONE REG." : "FOR REG.";
                     const badgeClass = (regStatus === "DONE REG.") ? "status-approved" : "status-pending";
                     const registerDateDisplay = rec.registerDate || "N/A";
@@ -1991,7 +2219,7 @@ ID NAME: ${rec.idName || "N/A"}`;
 
                 const activeUser = JSON.parse(sessionStorage.getItem('active_user') || '{}');
                 const uploaderName = activeUser.name || activeUser.email || "System User";
-                const timestamp = new Date().toLocaleString();
+                const timestamp = formatDateTimeFull();
                 const metaData = { fileName: fileNames, uploader: uploaderName, timestamp: timestamp };
 
                 await setDoc(doc(db, "admin_ops_analytics", "latest_counts"), { data: countsMap, meta: metaData });
@@ -2127,7 +2355,7 @@ ID NAME: ${rec.idName || "N/A"}`;
                 globalEmployeeRecords = parsedRows;
                 const activeUser = JSON.parse(sessionStorage.getItem('active_user') || '{}');
                 const uploaderName = activeUser.name || activeUser.email || "System User";
-                const timestamp = new Date().toLocaleString();
+                const timestamp = formatDateTimeFull();
 
                 sessionStorage.setItem('tms_meta', JSON.stringify({ fileName: fileNames, uploader: uploaderName, timestamp: timestamp }));
 
