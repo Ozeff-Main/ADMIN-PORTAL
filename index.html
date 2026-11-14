@@ -484,6 +484,12 @@
                 <div id="temp-expat-upload-status" class="msg" style="margin-top: 8px;"></div>
             </div>
 
+            <!-- SEARCH BAR FOR INCOMING EXPATS -->
+            <div style="background-color: #ffffff; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid var(--border); display: flex; gap: 10px; align-items: center;">
+                <input type="text" id="expat-search-input" placeholder="🔍 Search by Passport Number or Name..." oninput="filterIncomingExpatTable()" style="flex: 1; margin: 0;">
+                <button class="btn btn-clear" style="padding: 10px 20px;" onclick="document.getElementById('expat-search-input').value=''; filterIncomingExpatTable();">Clear</button>
+            </div>
+
             <div style="overflow-x: auto; margin-top: 15px;">
                 <table>
                     <thead>
@@ -1031,7 +1037,7 @@
     <!-- Firebase & Application Scripts -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, getDocs, setDoc, doc, deleteDoc, updateDoc, query, where, orderBy, limit, startAfter, endBefore, limitToLast } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, getDocs, setDoc, doc, deleteDoc, updateDoc, query, where, orderBy, limit, startAfter } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyDfR1qBZbTi9HnHJ97T_AM1Mc4yyuPLwUU",
@@ -1065,7 +1071,6 @@
         let currentPage = 1;
         const pageSize = 25;
         let lastVisibleDoc = null;
-        let firstVisibleDoc = null;
         let pageHistoryCursors = [];
 
         window.switchMainView = function(viewName) {
@@ -1122,8 +1127,9 @@
             }
         };
 
-        function formatDate(dateInput) {
-            if (dateInput === null || dateInput === undefined || dateInput === "") return "N/A";
+        // Clean Date Formatter (MM/DD/YYYY)
+        function formatCleanDate(dateInput) {
+            if (!dateInput || dateInput === "N/A") return "N/A";
             let d = null;
             if (typeof dateInput === 'number') {
                 const excelEpoch = new Date(1899, 11, 30);
@@ -1131,17 +1137,23 @@
             } else {
                 d = new Date(dateInput);
             }
-            if (!d || isNaN(d.getTime())) return String(dateInput);
-            
+            if (!d || isNaN(d.getTime())) {
+                // If it's already a formatted string, return as is or extract date part
+                const str = String(dateInput);
+                if (str.includes(",")) return str.split(",")[0]; // returns mm/dd/yyyy if it contains time
+                return str;
+            }
+            const month = String(d.getMonth() + 1).padStart(2, '0');
             const day = String(d.getDate()).padStart(2, '0');
-            const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-            const month = months[d.getMonth()];
             const year = d.getFullYear();
-            return `${day}-${month}-${year}`;
+            return `${month}/${day}/${year}`;
         }
 
-        // Exact requested timestamp format: "mm/dd/yyyy, h:mm:ss AM/PM" (e.g. "11/12/2026, 3:00:28 PM")
-        function formatDateTimeFull(d = new Date()) {
+        // Exact requested timestamp format: "mm/dd/yyyy, h:mm:ss AM/PM" (e.g. "11/14/2026, 3:00:28 PM")
+        function formatDateTimeFull(dateInput = null) {
+            let d = dateInput ? new Date(dateInput) : new Date();
+            if (!d || isNaN(d.getTime())) d = new Date();
+
             const month = String(d.getMonth() + 1).padStart(2, '0');
             const day = String(d.getDate()).padStart(2, '0');
             const year = d.getFullYear();
@@ -1193,7 +1205,9 @@
 
                     if (!passportNumber && !name) continue;
 
-                    const declareDate = String(getValue(row, ["Declare Date", "Date"])) || formatDateTimeFull();
+                    const rawDeclareDate = getValue(row, ["Declare Date", "Date"]);
+                    const declareDate = rawDeclareDate ? formatCleanDate(rawDeclareDate) : formatCleanDate(new Date());
+                    
                     const tmsRecordStatus = String(getValue(row, ["TMS Status", "TMS Record Status", "W/ RECORD ON TMS"])).trim().toUpperCase() || "YES";
                     const tmsIdNumber = String(getValue(row, ["TMS ID Number", "TMS ID", "ID Number"])).trim().toUpperCase() || "N/A";
                     const idProcessStatus = String(getValue(row, ["ID Process Status", "Status"])).trim().toUpperCase() || "CHECKING";
@@ -1210,7 +1224,9 @@
                     let completeDate = String(getValue(row, ["ID Process Complete Date", "Complete Date", "Completed Date"])).trim();
                     if ((idProcessStatus === "COMPLETED" || idProcessStatus === "VIP") && (!completeDate || completeDate === "N/A")) {
                         completeDate = formatDateTimeFull();
-                    } else if (idProcessStatus !== "COMPLETED" && idProcessStatus !== "VIP") {
+                    } else if (completeDate && completeDate !== "N/A") {
+                        completeDate = formatDateTimeFull(completeDate);
+                    } else {
                         completeDate = "N/A";
                     }
 
@@ -1252,7 +1268,6 @@
         window.resetAndLoadIncomingExpatTable = function() {
             currentPage = 1;
             lastVisibleDoc = null;
-            firstVisibleDoc = null;
             pageHistoryCursors = [];
             loadIncomingExpatTable();
         };
@@ -1260,7 +1275,7 @@
         window.changePage = async function(direction) {
             if (direction === 1) {
                 if (lastVisibleDoc) {
-                    pageHistoryCursors.push(firstVisibleDoc);
+                    pageHistoryCursors.push(lastVisibleDoc);
                     currentPage++;
                     await loadIncomingExpatTable(lastVisibleDoc, 'next');
                 }
@@ -1272,6 +1287,58 @@
                 }
             }
         };
+
+        window.filterIncomingExpatTable = function() {
+            const queryText = document.getElementById('expat-search-input').value.trim().toUpperCase();
+            if (!queryText) {
+                resetAndLoadIncomingExpatTable();
+                return;
+            }
+            // If searching, query all and filter locally for maximum accuracy across 6000 records
+            loadIncomingExpatTableWithFilter(queryText);
+        };
+
+        async function loadIncomingExpatTableWithFilter(searchStr) {
+            const tbody = document.getElementById('incoming-expat-table-body');
+            tbody.innerHTML = `<tr><td colspan="16" style="text-align:center;">Searching records for "${searchStr}"...</td></tr>`;
+
+            try {
+                const querySnapshot = await getDocs(collection(db, "incoming_expats"));
+                tbody.innerHTML = '';
+                expatRecordsCache = {};
+
+                let matchedRecords = [];
+                querySnapshot.forEach(docSnap => {
+                    const data = { id: docSnap.id, ...docSnap.data() };
+                    const ppt = String(data.passportNumber || "").toUpperCase();
+                    const name = String(data.name || "").toUpperCase();
+                    if (ppt.includes(searchStr) || name.includes(searchStr)) {
+                        matchedRecords.push(data);
+                    }
+                });
+
+                matchedRecords.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+                if (matchedRecords.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="16" style="text-align:center; color:var(--text-light);">No matching records found for "${searchStr}".</td></tr>`;
+                    document.getElementById('prev-page-btn').disabled = true;
+                    document.getElementById('next-page-btn').disabled = true;
+                    document.getElementById('page-indicator').textContent = `Search Results`;
+                    return;
+                }
+
+                matchedRecords.forEach(rec => {
+                    expatRecordsCache[rec.id] = rec;
+                    renderExpatRow(tbody, rec);
+                });
+
+                document.getElementById('prev-page-btn').disabled = true;
+                document.getElementById('next-page-btn').disabled = true;
+                document.getElementById('page-indicator').textContent = `Found ${matchedRecords.length} result(s)`;
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="16" style="text-align:center; color:var(--error);">Error searching records: ${e.message}</td></tr>`;
+            }
+        }
 
         async function loadIncomingExpatTable(cursor = null, direction = 'initial') {
             const tbody = document.getElementById('incoming-expat-table-body');
@@ -1297,7 +1364,7 @@
                     tbody.innerHTML = `<tr><td colspan="16" style="text-align:center; color:var(--text-light);">No incoming expat entries found on this page.</td></tr>`;
                     document.getElementById('next-page-btn').disabled = true;
                     document.getElementById('prev-page-btn').disabled = currentPage <= 1;
-                    document.getElementById('page-indicator.textContent').textContent = `Page ${currentPage}`;
+                    document.getElementById('page-indicator').textContent = `Page ${currentPage}`;
                     return;
                 }
 
@@ -1308,50 +1375,10 @@
                     expatRecordsCache[docSnap.id] = data;
                 });
 
-                firstVisibleDoc = querySnapshot.docs[0];
                 lastVisibleDoc = querySnapshot.docs[querySnapshot.docs.length - 1];
 
                 records.forEach(rec => {
-                    const remarkDisplay = rec.remarks ? `<div class="remark-tag">💬 ${escapeHtml(rec.remarks)}</div>` : '<span style="color:#94a3b8;">-</span>';
-                    const regStatus = rec.registrationStatus || "PENDING";
-                    
-                    let regStatusBadge = `<span class="status-badge status-pending">FOR REG.</span>`;
-                    if (regStatus === "COMPLETE TMS REGISTRATION" || regStatus === "COMPLETE TMS REG.") {
-                        regStatusBadge = `<span class="status-badge status-complete-tms">COMPLETE TMS REG.</span>`;
-                    } else if (regStatus === "DONE REGISTER" || regStatus === "DONE REG.") {
-                        regStatusBadge = `<span class="status-badge status-approved">DONE REG.</span>`;
-                    }
-
-                    const laceBadge = rec.laceStatus ? `<span class="status-badge status-approved">YES</span>` : `<span class="status-badge status-pending">NO</span>`;
-                    const uniformBadge = rec.uniformStatus ? `<span class="status-badge status-approved">YES</span>` : `<span class="status-badge status-pending">NO</span>`;
-                    const completeDateDisplay = rec.completeDate || "N/A";
-
-                    let actionHtml = `<button class="btn btn-clear" style="padding:3px 8px; font-size:11px;" onclick="openExpatEditModal('${rec.id}')">✏️ Edit</button>`;
-                    if (regStatus === "DONE REGISTER" || regStatus === "DONE REG." || regStatus === "COMPLETE TMS REGISTRATION" || regStatus === "COMPLETE TMS REG.") {
-                        actionHtml += ` <button class="btn" style="padding:3px 8px; font-size:11px; background-color:#7c3aed;" onclick="openAdminViewRegisteredModal('${rec.id}')">👁️ View</button>`;
-                    }
-                    actionHtml += ` <button class="btn btn-danger" style="padding:3px 8px; font-size:11px;" onclick="deleteExpatRecord('${rec.id}')">Delete</button>`;
-
-                    tbody.innerHTML += `
-                        <tr>
-                            <td style="font-size:11px;">${escapeHtml(rec.declareDate)}</td>
-                            <td><strong style="color:var(--primary);">${escapeHtml(rec.passportNumber)}</strong></td>
-                            <td>${escapeHtml(rec.section)}</td>
-                            <td style="font-weight:bold; text-align:left;">${escapeHtml(rec.name)}</td>
-                            <td><span class="status-badge ${rec.tmsRecordStatus === 'YES' ? 'status-approved' : 'status-pending'}">${rec.tmsRecordStatus}</span></td>
-                            <td><strong>${escapeHtml(rec.tmsIdNumber || 'N/A')}</strong></td>
-                            <td><strong>${escapeHtml(rec.idProcessStatus || 'CHECKING')}</strong></td>
-                            <td>${regStatusBadge}</td>
-                            <td style="font-size:11px;">${escapeHtml(rec.registerDate || 'N/A')}</td>
-                            <td>${escapeHtml(rec.uniformSize || 'M')}</td>
-                            <td>${laceBadge}</td>
-                            <td>${uniformBadge}</td>
-                            <td>${escapeHtml(rec.drugTest || 'NOT PAID YET')}</td>
-                            <td style="font-size:11px; color:var(--text-light);">${escapeHtml(completeDateDisplay)}</td>
-                            <td>${remarkDisplay}</td>
-                            <td>${actionHtml}</td>
-                        </tr>
-                    `;
+                    renderExpatRow(tbody, rec);
                 });
 
                 document.getElementById('prev-page-btn').disabled = currentPage <= 1;
@@ -1361,6 +1388,51 @@
             } catch (e) {
                 tbody.innerHTML = `<tr><td colspan="16" style="text-align:center; color:var(--error);">Error loading records: ${e.message}</td></tr>`;
             }
+        }
+
+        function renderExpatRow(tbody, rec) {
+            const remarkDisplay = rec.remarks ? `<div class="remark-tag">💬 ${escapeHtml(rec.remarks)}</div>` : '<span style="color:#94a3b8;">-</span>';
+            const regStatus = rec.registrationStatus || "PENDING";
+            
+            let regStatusBadge = `<span class="status-badge status-pending">FOR REG.</span>`;
+            if (regStatus === "COMPLETE TMS REGISTRATION" || regStatus === "COMPLETE TMS REG.") {
+                regStatusBadge = `<span class="status-badge status-complete-tms">COMPLETE TMS REG.</span>`;
+            } else if (regStatus === "DONE REGISTER" || regStatus === "DONE REG.") {
+                regStatusBadge = `<span class="status-badge status-approved">DONE REG.</span>`;
+            }
+
+            const laceBadge = rec.laceStatus ? `<span class="status-badge status-approved">YES</span>` : `<span class="status-badge status-pending">NO</span>`;
+            const uniformBadge = rec.uniformStatus ? `<span class="status-badge status-approved">YES</span>` : `<span class="status-badge status-pending">NO</span>`;
+            
+            const cleanDeclareDate = formatCleanDate(rec.declareDate);
+            const completeDateDisplay = (rec.completeDate && rec.completeDate !== "N/A") ? formatDateTimeFull(rec.completeDate) : "N/A";
+
+            let actionHtml = `<button class="btn btn-clear" style="padding:3px 8px; font-size:11px;" onclick="openExpatEditModal('${rec.id}')">✏️ Edit</button>`;
+            if (regStatus === "DONE REGISTER" || regStatus === "DONE REG." || regStatus === "COMPLETE TMS REGISTRATION" || regStatus === "COMPLETE TMS REG.") {
+                actionHtml += ` <button class="btn" style="padding:3px 8px; font-size:11px; background-color:#7c3aed;" onclick="openAdminViewRegisteredModal('${rec.id}')">👁️ View</button>`;
+            }
+            actionHtml += ` <button class="btn btn-danger" style="padding:3px 8px; font-size:11px;" onclick="deleteExpatRecord('${rec.id}')">Delete</button>`;
+
+            tbody.innerHTML += `
+                <tr>
+                    <td style="font-size:11px;">${escapeHtml(cleanDeclareDate)}</td>
+                    <td><strong style="color:var(--primary);">${escapeHtml(rec.passportNumber)}</strong></td>
+                    <td>${escapeHtml(rec.section)}</td>
+                    <td style="font-weight:bold; text-align:left;">${escapeHtml(rec.name)}</td>
+                    <td><span class="status-badge ${rec.tmsRecordStatus === 'YES' ? 'status-approved' : 'status-pending'}">${rec.tmsRecordStatus}</span></td>
+                    <td><strong>${escapeHtml(rec.tmsIdNumber || 'N/A')}</strong></td>
+                    <td><strong>${escapeHtml(rec.idProcessStatus || 'CHECKING')}</strong></td>
+                    <td>${regStatusBadge}</td>
+                    <td style="font-size:11px;">${escapeHtml(rec.registerDate || 'N/A')}</td>
+                    <td>${escapeHtml(rec.uniformSize || 'M')}</td>
+                    <td>${laceBadge}</td>
+                    <td>${uniformBadge}</td>
+                    <td>${escapeHtml(rec.drugTest || 'NOT PAID YET')}</td>
+                    <td style="font-size:11px; color:var(--text-light);">${escapeHtml(completeDateDisplay)}</td>
+                    <td>${remarkDisplay}</td>
+                    <td>${actionHtml}</td>
+                </tr>
+            `;
         }
 
         window.openAddExpatModal = function(pptNo, office, name, tmsStatus, tmsIdNumber, birthdate = "") {
@@ -1436,7 +1508,7 @@
                     return;
                 }
 
-                const declareDate = formatDateTimeFull();
+                const declareDate = formatCleanDate(new Date());
                 await addDoc(collection(db, "incoming_expats"), {
                     declareDate: declareDate,
                     passportNumber: pptNo,
@@ -2134,7 +2206,7 @@ ID NAME: ${rec.idName || "N/A"}`;
                 const name = String(getValue(row, ["English Name", "PPT NAME", "Name", "Full Name"])).toUpperCase();
                 const ppt = String(getValue(row, ["Passport", "Passport No", "PPT NO", "PPT NO."])).toUpperCase();
                 const bdayRaw = getValue(row, ["Birthday", "Birthdate", "Birth Date"]);
-                const formattedRowBday = formatDate(bdayRaw).toLowerCase();
+                const formattedRowBday = formatCleanDate(bdayRaw).toLowerCase();
                 const bdayString = String(bdayRaw).trim().toLowerCase();
 
                 let matches = true;
@@ -2157,7 +2229,7 @@ ID NAME: ${rec.idName || "N/A"}`;
                 if (bdayQuery) {
                     const parsedBday = new Date(bdayQuery);
                     if (!isNaN(parsedBday.getTime())) {
-                        bdayFormatted = formatDate(parsedBday);
+                        bdayFormatted = formatCleanDate(parsedBday);
                         const today = new Date();
                         let age = today.getFullYear() - parsedBday.getFullYear();
                         const m = today.getMonth() - parsedBday.getMonth();
@@ -2198,7 +2270,7 @@ AGE STATUS: ${ageStatusOutput}`;
                 const pptName = getValue(row, ["English Name", "PPT NAME", "Name", "Full Name"]) || "N/A";
                 const pptNo = getValue(row, ["Passport", "Passport No", "PPT NO", "PPT NO."]) || "N/A";
                 const bdayRaw = getValue(row, ["Birthday", "Birthdate", "Birth Date"]);
-                const formattedBday = formatDate(bdayRaw);
+                const formattedBday = formatCleanDate(bdayRaw);
                 const office = getValue(row, ["Office", "PREV. OFFICE", "Previous Office"]) || "N/A";
                 const site = getValue(row, ["Site", "PREV. SITE", "Company", "Previous Site"]) || "N/A";
                 const status = getValue(row, ["Status", "LAST STATUS", "Last Status"]) || "N/A";
@@ -2217,7 +2289,7 @@ AGE STATUS: ${ageStatusOutput}`;
                     }
                 }
 
-                const formattedStatusDate = formatDate(statusDateRaw);
+                const formattedStatusDate = formatCleanDate(statusDateRaw);
                 const cardText = 
 `PPT NAME: ${pptName}
 PPT NO.: ${pptNo}
@@ -2252,7 +2324,7 @@ AGE STATUS: ${ageStatus}`;
                     const activeUser = JSON.parse(sessionStorage.getItem('active_user') || '{}');
                     const userName = activeUser.name || activeUser.email || "Anonymous User";
                     const now = new Date();
-                    const timestampString = now.toLocaleString();
+                    const timestampString = formatDateTimeFull(now);
 
                     await addDoc(collection(db, "copy_history"), {
                         user: userName,
@@ -2338,7 +2410,7 @@ AGE STATUS: ${ageStatus}`;
                     status: assignedStatus,
                     position: assignedPosition, 
                     department: assignedDept,
-                    joined: new Date().toLocaleDateString() 
+                    joined: formatCleanDate(new Date())
                 });
 
                 msgEl.textContent = "Registration successful! Please log in.";
