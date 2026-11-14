@@ -158,6 +158,7 @@
         }
 
         .btn:hover { background-color: var(--primary-hover); }
+        .btn:disabled { background-color: #94a3b8; cursor: not-allowed; }
         .btn-clear { background-color: #10b981; }
         .btn-clear:hover { background-color: #059669; }
         .btn-danger { background-color: var(--error); }
@@ -509,6 +510,13 @@
                         <tr><td colspan="16" style="text-align:center;">Loading incoming expat roster...</td></tr>
                     </tbody>
                 </table>
+            </div>
+
+            <!-- PAGINATION CONTROLS -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; padding: 10px 0;">
+                <button id="prev-page-btn" class="btn" style="padding: 6px 16px;" onclick="changePage(-1)" disabled>⬅️ Previous 25</button>
+                <span id="page-indicator" style="font-weight: 600; font-size: 14px; color: var(--text-light);">Page 1</span>
+                <button id="next-page-btn" class="btn" style="padding: 6px 16px;" onclick="changePage(1)">Next 25 ➡️</button>
             </div>
         </div>
 
@@ -1023,7 +1031,7 @@
     <!-- Firebase & Application Scripts -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, getDocs, setDoc, doc, deleteDoc, updateDoc, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, getDocs, setDoc, doc, deleteDoc, updateDoc, query, where, orderBy, limit, startAfter, endBefore, limitToLast } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyDfR1qBZbTi9HnHJ97T_AM1Mc4yyuPLwUU",
@@ -1053,6 +1061,13 @@
         let expatRecordsCache = {};
         let sectionRecordsCache = {};
 
+        // Pagination state variables
+        let currentPage = 1;
+        const pageSize = 25;
+        let lastVisibleDoc = null;
+        let firstVisibleDoc = null;
+        let pageHistoryCursors = [];
+
         window.switchMainView = function(viewName) {
             document.querySelectorAll('.side-btn').forEach(btn => btn.classList.remove('active'));
             document.getElementById('view-portal').classList.add('hidden');
@@ -1072,7 +1087,7 @@
             } else if (viewName === 'incoming-expat') {
                 document.getElementById('view-incoming-expat').classList.remove('hidden');
                 event.currentTarget.classList.add('active');
-                loadIncomingExpatTable();
+                resetAndLoadIncomingExpatTable();
             } else if (viewName === 'section-portal') {
                 document.getElementById('view-section-portal').classList.remove('hidden');
                 event.currentTarget.classList.add('active');
@@ -1125,7 +1140,7 @@
             return `${day}-${month}-${year}`;
         }
 
-        // Format timestamp as: MM/DD/YYYY, h:mm:ss A
+        // Exact requested timestamp format: "mm/dd/yyyy, h:mm:ss AM/PM" (e.g. "11/12/2026, 3:00:28 PM")
         function formatDateTimeFull(d = new Date()) {
             const month = String(d.getMonth() + 1).padStart(2, '0');
             const day = String(d.getDate()).padStart(2, '0');
@@ -1226,14 +1241,128 @@
 
                 statusEl.textContent = `Successfully imported ${importedCount} record(s) into the Incoming Expat Portal!`;
                 statusEl.className = "msg success";
-                loadIncomingExpatTable();
+                resetAndLoadIncomingExpatTable();
             } catch (err) {
                 statusEl.textContent = "Error importing Excel file: " + err.message;
                 statusEl.className = "msg error";
             }
         };
 
-        /* INCOMING EXPAT PORTAL & DUPLICATE PREVENTION LOGIC */
+        /* INCOMING EXPAT PORTAL & FAST PAGINATED LOADING LOGIC */
+        window.resetAndLoadIncomingExpatTable = function() {
+            currentPage = 1;
+            lastVisibleDoc = null;
+            firstVisibleDoc = null;
+            pageHistoryCursors = [];
+            loadIncomingExpatTable();
+        };
+
+        window.changePage = async function(direction) {
+            if (direction === 1) {
+                if (lastVisibleDoc) {
+                    pageHistoryCursors.push(firstVisibleDoc);
+                    currentPage++;
+                    await loadIncomingExpatTable(lastVisibleDoc, 'next');
+                }
+            } else if (direction === -1) {
+                if (currentPage > 1) {
+                    currentPage--;
+                    const prevCursor = pageHistoryCursors.pop() || null;
+                    await loadIncomingExpatTable(prevCursor, 'prev');
+                }
+            }
+        };
+
+        async function loadIncomingExpatTable(cursor = null, direction = 'initial') {
+            const tbody = document.getElementById('incoming-expat-table-body');
+            tbody.innerHTML = `<tr><td colspan="16" style="text-align:center;">Loading incoming expat roster... (Page ${currentPage})</td></tr>`;
+
+            try {
+                let q;
+                const collRef = collection(db, "incoming_expats");
+
+                if (direction === 'next' && cursor) {
+                    q = query(collRef, orderBy("createdAt", "desc"), startAfter(cursor), limit(pageSize));
+                } else if (direction === 'prev' && cursor) {
+                    q = query(collRef, orderBy("createdAt", "desc"), startAfter(cursor), limit(pageSize));
+                } else {
+                    q = query(collRef, orderBy("createdAt", "desc"), limit(pageSize));
+                }
+
+                const querySnapshot = await getDocs(q);
+                tbody.innerHTML = '';
+                expatRecordsCache = {};
+
+                if (querySnapshot.empty) {
+                    tbody.innerHTML = `<tr><td colspan="16" style="text-align:center; color:var(--text-light);">No incoming expat entries found on this page.</td></tr>`;
+                    document.getElementById('next-page-btn').disabled = true;
+                    document.getElementById('prev-page-btn').disabled = currentPage <= 1;
+                    document.getElementById('page-indicator.textContent').textContent = `Page ${currentPage}`;
+                    return;
+                }
+
+                let records = [];
+                querySnapshot.forEach(docSnap => {
+                    const data = { id: docSnap.id, ...docSnap.data() };
+                    records.push(data);
+                    expatRecordsCache[docSnap.id] = data;
+                });
+
+                firstVisibleDoc = querySnapshot.docs[0];
+                lastVisibleDoc = querySnapshot.docs[querySnapshot.docs.length - 1];
+
+                records.forEach(rec => {
+                    const remarkDisplay = rec.remarks ? `<div class="remark-tag">💬 ${escapeHtml(rec.remarks)}</div>` : '<span style="color:#94a3b8;">-</span>';
+                    const regStatus = rec.registrationStatus || "PENDING";
+                    
+                    let regStatusBadge = `<span class="status-badge status-pending">FOR REG.</span>`;
+                    if (regStatus === "COMPLETE TMS REGISTRATION" || regStatus === "COMPLETE TMS REG.") {
+                        regStatusBadge = `<span class="status-badge status-complete-tms">COMPLETE TMS REG.</span>`;
+                    } else if (regStatus === "DONE REGISTER" || regStatus === "DONE REG.") {
+                        regStatusBadge = `<span class="status-badge status-approved">DONE REG.</span>`;
+                    }
+
+                    const laceBadge = rec.laceStatus ? `<span class="status-badge status-approved">YES</span>` : `<span class="status-badge status-pending">NO</span>`;
+                    const uniformBadge = rec.uniformStatus ? `<span class="status-badge status-approved">YES</span>` : `<span class="status-badge status-pending">NO</span>`;
+                    const completeDateDisplay = rec.completeDate || "N/A";
+
+                    let actionHtml = `<button class="btn btn-clear" style="padding:3px 8px; font-size:11px;" onclick="openExpatEditModal('${rec.id}')">✏️ Edit</button>`;
+                    if (regStatus === "DONE REGISTER" || regStatus === "DONE REG." || regStatus === "COMPLETE TMS REGISTRATION" || regStatus === "COMPLETE TMS REG.") {
+                        actionHtml += ` <button class="btn" style="padding:3px 8px; font-size:11px; background-color:#7c3aed;" onclick="openAdminViewRegisteredModal('${rec.id}')">👁️ View</button>`;
+                    }
+                    actionHtml += ` <button class="btn btn-danger" style="padding:3px 8px; font-size:11px;" onclick="deleteExpatRecord('${rec.id}')">Delete</button>`;
+
+                    tbody.innerHTML += `
+                        <tr>
+                            <td style="font-size:11px;">${escapeHtml(rec.declareDate)}</td>
+                            <td><strong style="color:var(--primary);">${escapeHtml(rec.passportNumber)}</strong></td>
+                            <td>${escapeHtml(rec.section)}</td>
+                            <td style="font-weight:bold; text-align:left;">${escapeHtml(rec.name)}</td>
+                            <td><span class="status-badge ${rec.tmsRecordStatus === 'YES' ? 'status-approved' : 'status-pending'}">${rec.tmsRecordStatus}</span></td>
+                            <td><strong>${escapeHtml(rec.tmsIdNumber || 'N/A')}</strong></td>
+                            <td><strong>${escapeHtml(rec.idProcessStatus || 'CHECKING')}</strong></td>
+                            <td>${regStatusBadge}</td>
+                            <td style="font-size:11px;">${escapeHtml(rec.registerDate || 'N/A')}</td>
+                            <td>${escapeHtml(rec.uniformSize || 'M')}</td>
+                            <td>${laceBadge}</td>
+                            <td>${uniformBadge}</td>
+                            <td>${escapeHtml(rec.drugTest || 'NOT PAID YET')}</td>
+                            <td style="font-size:11px; color:var(--text-light);">${escapeHtml(completeDateDisplay)}</td>
+                            <td>${remarkDisplay}</td>
+                            <td>${actionHtml}</td>
+                        </tr>
+                    `;
+                });
+
+                document.getElementById('prev-page-btn').disabled = currentPage <= 1;
+                document.getElementById('next-page-btn').disabled = querySnapshot.size < pageSize;
+                document.getElementById('page-indicator').textContent = `Page ${currentPage}`;
+
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="16" style="text-align:center; color:var(--error);">Error loading records: ${e.message}</td></tr>`;
+            }
+        }
+
         window.openAddExpatModal = function(pptNo, office, name, tmsStatus, tmsIdNumber, birthdate = "") {
             document.getElementById('modal-expat-ppt').value = pptNo || "N/A";
             document.getElementById('modal-expat-name').value = name || "N/A";
@@ -1330,6 +1459,7 @@
 
                 closeAddExpatModal();
                 alert(`Success: ${name} added to Incoming Expat Employee Portal under section ${newSection}!`);
+                resetAndLoadIncomingExpatTable();
             } catch (e) {
                 alert("Error adding to Incoming Expat Portal: " + e.message);
             }
@@ -1338,76 +1468,6 @@
         window.closeDuplicateModal = function() {
             document.getElementById('duplicate-expat-modal').classList.add('hidden');
         };
-
-        async function loadIncomingExpatTable() {
-            const tbody = document.getElementById('incoming-expat-table-body');
-            tbody.innerHTML = `<tr><td colspan="16" style="text-align:center;">Loading incoming expat roster...</td></tr>`;
-
-            try {
-                const querySnapshot = await getDocs(collection(db, "incoming_expats"));
-                tbody.innerHTML = '';
-                expatRecordsCache = {};
-
-                if (querySnapshot.empty) {
-                    tbody.innerHTML = `<tr><td colspan="16" style="text-align:center; color:var(--text-light);">No incoming expat entries found. Add entries from TMS Search or bulk upload above.</td></tr>`;
-                    return;
-                }
-
-                let records = [];
-                querySnapshot.forEach(docSnap => {
-                    const data = { id: docSnap.id, ...docSnap.data() };
-                    records.push(data);
-                    expatRecordsCache[docSnap.id] = data;
-                });
-
-                records.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-
-                records.forEach(rec => {
-                    const remarkDisplay = rec.remarks ? `<div class="remark-tag">💬 ${escapeHtml(rec.remarks)}</div>` : '<span style="color:#94a3b8;">-</span>';
-                    const regStatus = rec.registrationStatus || "PENDING";
-                    
-                    let regStatusBadge = `<span class="status-badge status-pending">FOR REG.</span>`;
-                    if (regStatus === "COMPLETE TMS REGISTRATION" || regStatus === "COMPLETE TMS REG.") {
-                        regStatusBadge = `<span class="status-badge status-complete-tms">COMPLETE TMS REG.</span>`;
-                    } else if (regStatus === "DONE REGISTER" || regStatus === "DONE REG.") {
-                        regStatusBadge = `<span class="status-badge status-approved">DONE REG.</span>`;
-                    }
-
-                    const laceBadge = rec.laceStatus ? `<span class="status-badge status-approved">YES</span>` : `<span class="status-badge status-pending">NO</span>`;
-                    const uniformBadge = rec.uniformStatus ? `<span class="status-badge status-approved">YES</span>` : `<span class="status-badge status-pending">NO</span>`;
-                    const completeDateDisplay = rec.completeDate || "N/A";
-
-                    let actionHtml = `<button class="btn btn-clear" style="padding:3px 8px; font-size:11px;" onclick="openExpatEditModal('${rec.id}')">✏️ Edit</button>`;
-                    if (regStatus === "DONE REGISTER" || regStatus === "DONE REG." || regStatus === "COMPLETE TMS REGISTRATION" || regStatus === "COMPLETE TMS REG.") {
-                        actionHtml += ` <button class="btn" style="padding:3px 8px; font-size:11px; background-color:#7c3aed;" onclick="openAdminViewRegisteredModal('${rec.id}')">👁️ View</button>`;
-                    }
-                    actionHtml += ` <button class="btn btn-danger" style="padding:3px 8px; font-size:11px;" onclick="deleteExpatRecord('${rec.id}')">Delete</button>`;
-
-                    tbody.innerHTML += `
-                        <tr>
-                            <td style="font-size:11px;">${escapeHtml(rec.declareDate)}</td>
-                            <td><strong style="color:var(--primary);">${escapeHtml(rec.passportNumber)}</strong></td>
-                            <td>${escapeHtml(rec.section)}</td>
-                            <td style="font-weight:bold; text-align:left;">${escapeHtml(rec.name)}</td>
-                            <td><span class="status-badge ${rec.tmsRecordStatus === 'YES' ? 'status-approved' : 'status-pending'}">${rec.tmsRecordStatus}</span></td>
-                            <td><strong>${escapeHtml(rec.tmsIdNumber || 'N/A')}</strong></td>
-                            <td><strong>${escapeHtml(rec.idProcessStatus || 'CHECKING')}</strong></td>
-                            <td>${regStatusBadge}</td>
-                            <td style="font-size:11px;">${escapeHtml(rec.registerDate || 'N/A')}</td>
-                            <td>${escapeHtml(rec.uniformSize || 'M')}</td>
-                            <td>${laceBadge}</td>
-                            <td>${uniformBadge}</td>
-                            <td>${escapeHtml(rec.drugTest || 'NOT PAID YET')}</td>
-                            <td style="font-size:11px; color:var(--text-light);">${escapeHtml(completeDateDisplay)}</td>
-                            <td>${remarkDisplay}</td>
-                            <td>${actionHtml}</td>
-                        </tr>
-                    `;
-                });
-            } catch (e) {
-                tbody.innerHTML = `<tr><td colspan="16" style="text-align:center; color:var(--error);">Error loading records: ${e.message}</td></tr>`;
-            }
-        }
 
         window.markRecordCompleteTMS = async function(id) {
             if (!confirm("Are you sure you want to mark this employee registration as Complete TMS Registration?")) return;
