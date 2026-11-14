@@ -492,7 +492,7 @@
                 <button class="btn btn-clear" style="padding: 10px 20px;" onclick="document.getElementById('expat-search-input').value=''; resetAndLoadIncomingExpatTable();">Clear</button>
             </div>
 
-            <!-- NEW: ID PROCESSING SELECTED QUICK-LIST DRAWER -->
+            <!-- ID PROCESSING SELECTED QUICK-LIST DRAWER -->
             <div id="id-processing-drawer" style="background-color: #eff6ff; border: 2px solid var(--primary); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                     <h3 style="margin: 0; color: var(--primary); font-size: 16px;">📇 ID Processing Selected Quick-List (<span id="selected-count-badge">0</span> selected)</h3>
@@ -1104,7 +1104,7 @@
         let globalEmployeeRecords = [];
         let expatRecordsCache = {};
         let sectionRecordsCache = {};
-        let selectedExpatIds = new Set(); // Stores checked IDs for ID Processing quick-list
+        let selectedExpatMap = new Map(); // Persistent map storing selected record objects across pages
 
         // Pagination state variables
         let currentPage = 1;
@@ -1427,7 +1427,10 @@
             const declareDateDisplay = (rec.declareDate && rec.declareDate !== "N/A") ? formatDateTimeFull(rec.declareDate) : "N/A";
             const completeDateDisplay = (rec.completeDate && rec.completeDate !== "N/A") ? formatDateTimeFull(rec.completeDate) : "N/A";
 
-            const isChecked = selectedExpatIds.has(rec.id) ? 'checked' : '';
+            const isChecked = selectedExpatMap.has(rec.id) ? 'checked' : '';
+            if (isChecked) {
+                selectedExpatMap.set(rec.id, rec); // Keep selected record data fresh
+            }
 
             let actionHtml = `<button class="btn btn-clear" style="padding:3px 8px; font-size:11px;" onclick="openExpatEditModal('${rec.id}')">✏️ Edit</button>`;
             if (regStatus === "DONE REGISTER" || regStatus === "DONE REG." || regStatus === "COMPLETE TMS REGISTRATION" || regStatus === "COMPLETE TMS REG.") {
@@ -1461,9 +1464,10 @@
         /* ID PROCESSING SELECTION & DRAWER LOGIC */
         window.toggleExpatSelection = function(checkbox, id) {
             if (checkbox.checked) {
-                selectedExpatIds.add(id);
+                const rec = expatRecordsCache[id];
+                if (rec) selectedExpatMap.set(id, rec);
             } else {
-                selectedExpatIds.delete(id);
+                selectedExpatMap.delete(id);
             }
             updateSelectedQuickListDrawer();
         };
@@ -1474,16 +1478,17 @@
                 cb.checked = selectAllCheckbox.checked;
                 const id = cb.getAttribute('data-id');
                 if (selectAllCheckbox.checked) {
-                    selectedExpatIds.add(id);
+                    const rec = expatRecordsCache[id];
+                    if (rec) selectedExpatMap.set(id, rec);
                 } else {
-                    selectedExpatIds.delete(id);
+                    selectedExpatMap.delete(id);
                 }
             });
             updateSelectedQuickListDrawer();
         };
 
         window.clearAllSelections = function() {
-            selectedExpatIds.clear();
+            selectedExpatMap.clear();
             document.querySelectorAll('.expat-row-checkbox').forEach(cb => cb.checked = false);
             const selectAll = document.getElementById('select-all-checkbox');
             if (selectAll) selectAll.checked = false;
@@ -1493,18 +1498,17 @@
         function updateSelectedQuickListDrawer() {
             const countBadge = document.getElementById('selected-count-badge');
             const contentContainer = document.getElementById('selected-quick-list-content');
-            countBadge.textContent = selectedExpatIds.size;
+            countBadge.textContent = selectedExpatMap.size;
 
-            if (selectedExpatIds.size === 0) {
+            if (selectedExpatMap.size === 0) {
                 contentContainer.innerHTML = 'No employees currently checked. Check employee rows below to add them to this quick-list for rapid access & multi-editing!';
                 return;
             }
 
             let html = '<div style="display: flex; flex-wrap: wrap; gap: 8px;">';
-            selectedExpatIds.forEach(id => {
-                const rec = expatRecordsCache[id];
-                const name = rec ? rec.name : `ID: ${id.substring(0,6)}...`;
-                const passport = rec ? rec.passportNumber : '';
+            selectedExpatMap.forEach((rec, id) => {
+                const name = rec.name || `ID: ${id.substring(0,6)}...`;
+                const passport = rec.passportNumber || '';
                 html += `
                     <div style="background: white; border: 1px solid var(--border); padding: 6px 12px; border-radius: 6px; display: flex; align-items: center; gap: 8px; font-weight: 600;">
                         <span>👤 ${escapeHtml(name)} (${escapeHtml(passport)})</span>
@@ -1518,7 +1522,7 @@
         }
 
         window.removeQuickSelection = function(id) {
-            selectedExpatIds.delete(id);
+            selectedExpatMap.delete(id);
             const cb = document.querySelector(`.expat-row-checkbox[data-id="${id}"]`);
             if (cb) cb.checked = false;
             updateSelectedQuickListDrawer();
@@ -1645,7 +1649,7 @@
         };
 
         window.openAdminViewRegisteredModal = function(id) {
-            const rec = expatRecordsCache[id];
+            const rec = expatRecordsCache[id] || selectedExpatMap.get(id);
             if (!rec) return;
 
             document.getElementById('v-section').value = rec.section || "";
@@ -1933,7 +1937,7 @@ ID NAME: ${rec.idName || "N/A"}`;
         };
 
         window.openExpatEditModal = function(id) {
-            const rec = expatRecordsCache[id];
+            const rec = expatRecordsCache[id] || selectedExpatMap.get(id);
             if (!rec) return;
 
             document.getElementById('edit-expat-id').value = id;
@@ -1975,7 +1979,7 @@ ID NAME: ${rec.idName || "N/A"}`;
 
             try {
                 const docRef = doc(db, "incoming_expats", id);
-                const oldRec = expatRecordsCache[id] || {};
+                const oldRec = expatRecordsCache[id] || selectedExpatMap.get(id) || {};
                 let completeDate = oldRec.completeDate || "N/A";
 
                 if ((idProcessStatus === "COMPLETED" || idProcessStatus === "VIP") && (oldRec.idProcessStatus !== "COMPLETED" && oldRec.idProcessStatus !== "VIP")) {
@@ -1984,7 +1988,7 @@ ID NAME: ${rec.idName || "N/A"}`;
                     completeDate = "N/A";
                 }
 
-                await updateDoc(docRef, {
+                const updatedFields = {
                     passportNumber,
                     section,
                     name,
@@ -1996,7 +2000,14 @@ ID NAME: ${rec.idName || "N/A"}`;
                     drugTest,
                     completeDate,
                     remarks
-                });
+                };
+
+                await updateDoc(docRef, updatedFields);
+
+                if (selectedExpatMap.has(id)) {
+                    selectedExpatMap.set(id, { ...selectedExpatMap.get(id), ...updatedFields });
+                    updateSelectedQuickListDrawer();
+                }
 
                 closeExpatEditModal();
                 loadIncomingExpatTable();
@@ -2010,6 +2021,10 @@ ID NAME: ${rec.idName || "N/A"}`;
             if (confirm("Are you sure you want to delete this incoming expat record?")) {
                 try {
                     await deleteDoc(doc(db, "incoming_expats", id));
+                    if (selectedExpatMap.has(id)) {
+                        selectedExpatMap.delete(id);
+                        updateSelectedQuickListDrawer();
+                    }
                     loadIncomingExpatTable();
                 } catch (e) {
                     alert("Error deleting record: " + e.message);
