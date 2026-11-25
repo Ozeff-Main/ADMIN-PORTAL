@@ -201,6 +201,8 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
             margin-bottom: 12px;
             border-bottom: 1px solid #e2e8f0;
             padding-bottom: 8px;
@@ -219,6 +221,19 @@
             font-weight: 600;
         }
         .badge-copy:hover { background-color: #4f46e5; }
+
+        .badge-copy-diff-ppt {
+            background-color: #d97706;
+            color: white;
+            border: none;
+            padding: 6px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+        .badge-copy-diff-ppt:hover { background-color: #b45309; }
 
         .btn-add-expat {
             background-color: #059669;
@@ -252,7 +267,7 @@
             border-radius: 12px;
             font-size: 11px;
             font-weight: bold;
-            white-space: nowrap; /* Forces badge text onto a single straight line */
+            white-space: nowrap;
         }
         .status-approved { background-color: #d1fae5; color: #065f46; }
         .status-pending { background-color: #fef3c7; color: #92400e; }
@@ -1429,7 +1444,7 @@
 
             const isChecked = selectedExpatMap.has(rec.id) ? 'checked' : '';
             if (isChecked) {
-                selectedExpatMap.set(rec.id, rec); // Keep selected record data fresh
+                selectedExpatMap.set(rec.id, rec);
             }
 
             let actionHtml = `<button class="btn btn-clear" style="padding:3px 8px; font-size:11px;" onclick="openExpatEditModal('${rec.id}')">✏️ Edit</button>`;
@@ -2355,7 +2370,7 @@ AGE STATUS: ${ageStatusOutput}`;
 
             results.forEach((row, index) => {
                 const pptName = getValue(row, ["English Name", "PPT NAME", "Name", "Full Name"]) || "N/A";
-                const pptNo = getValue(row, ["Passport", "Passport No", "PPT NO", "PPT NO."]) || "N/A";
+                const pptNo = String(getValue(row, ["Passport", "Passport No", "PPT NO", "PPT NO."]) || "N/A").trim();
                 const bdayRaw = getValue(row, ["Birthday", "Birthdate", "Birth Date"]);
                 const formattedBday = formatCleanDate(bdayRaw);
                 const office = getValue(row, ["Office", "PREV. OFFICE", "Previous Office"]) || "N/A";
@@ -2388,6 +2403,28 @@ LAST STATUS DATE: ${formattedStatusDate}
 TMS ID NUMBER: ${tmsId}
 AGE STATUS: ${ageStatus}`;
 
+                // Check if birthdate matched and searched passport number differs from record passport number
+                const bdayString = String(bdayRaw).trim().toLowerCase();
+                const bdayMatched = !!(bdayQuery && (bdayString === bdayQuery || formattedBday.toLowerCase() === bdayQuery || bdayString.includes(bdayQuery)));
+                const hasDifferentPassport = !!(passportQuery && pptNo.toUpperCase() !== passportQuery);
+                const showDiffPassportCopyBtn = bdayMatched && hasDifferentPassport;
+
+                const diffPassportCopyText =
+`PPT NAME: ${pptName}
+PPT NO.: ${passportQuery}
+PREV. PPT NO.: ${pptNo}
+W/ RECORD ON TMS: YES
+PREV. OFFICE: ${office}
+PREV. SITE: ${site}
+LAST STATUS: ${status}
+LAST STATUS DATE: ${formattedStatusDate}
+TMS ID NUMBER: ${tmsId}
+AGE STATUS: ${ageStatus}`;
+
+                const diffPassportBtnHtml = showDiffPassportCopyBtn
+                    ? `<button class="badge-copy-diff-ppt" onclick="recordCopyAction(\`${escapeQuote(diffPassportCopyText)}\`, 'Copied with searched PPT NO. (${escapeQuote(passportQuery)}) and PREV. PPT NO. (${escapeQuote(pptNo)})!')">🔄 Copy w/ New PPT NO.</button>`
+                    : '';
+
                 const card = document.createElement('div');
                 card.className = 'record-card';
                 card.innerHTML = `
@@ -2395,7 +2432,8 @@ AGE STATUS: ${ageStatus}`;
                         <strong>Record #${index + 1}</strong>
                         <div>
                             <button class="badge-copy" onclick="recordCopyAction(\`${escapeQuote(cardText)}\`)">📋 Copy Record</button>
-                            <button class="btn-add-expat" onclick="openAddExpatModal('${escapeQuote(pptNo)}', '${escapeQuote(office)}', '${escapeQuote(pptName)}', 'YES', '${escapeQuote(tmsId)}', '${escapeQuote(formattedBday)}')">➕ Add to Incoming Expat Portal</button>
+                            ${diffPassportBtnHtml}
+                            <button class="btn-add-expat" onclick="openAddExpatModal('${escapeQuote(showDiffPassportCopyBtn ? passportQuery : pptNo)}', '${escapeQuote(office)}', '${escapeQuote(pptName)}', 'YES', '${escapeQuote(tmsId)}', '${escapeQuote(formattedBday)}')">➕ Add to Incoming Expat Portal</button>
                         </div>
                     </div>
                     <div>${cardText}</div>
@@ -2404,9 +2442,9 @@ AGE STATUS: ${ageStatus}`;
             });
         };
 
-        window.recordCopyAction = async function(text) {
+        window.recordCopyAction = async function(text, successAlertMessage = "Record copied to clipboard!") {
             navigator.clipboard.writeText(text).then(async () => {
-                alert("Record copied to clipboard!");
+                alert(successAlertMessage);
                 try {
                     const activeUser = JSON.parse(sessionStorage.getItem('active_user') || '{}');
                     const userName = activeUser.name || activeUser.email || "Anonymous User";
