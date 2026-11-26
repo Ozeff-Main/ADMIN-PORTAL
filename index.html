@@ -222,7 +222,7 @@
         }
         .badge-copy:hover { background-color: #4f46e5; }
 
-        .badge-copy-diff-ppt {
+        .badge-new-ppt {
             background-color: #d97706;
             color: white;
             border: none;
@@ -233,7 +233,35 @@
             font-weight: 600;
             margin-left: 8px;
         }
-        .badge-copy-diff-ppt:hover { background-color: #b45309; }
+        .badge-new-ppt:hover { background-color: #b45309; }
+
+        .new-ppt-bar {
+            background-color: #fffbeb;
+            border: 1px solid #fcd34d;
+            padding: 10px 14px;
+            border-radius: 6px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            white-space: normal;
+        }
+
+        .new-ppt-bar label {
+            margin: 0;
+            white-space: nowrap;
+            color: #92400e;
+            font-size: 13px;
+        }
+
+        .new-ppt-bar input {
+            max-width: 240px;
+            padding: 6px 10px;
+            font-size: 13px;
+            text-transform: uppercase;
+            background: #ffffff;
+        }
 
         .btn-add-expat {
             background-color: #059669;
@@ -668,13 +696,23 @@
             <h3 style="margin-top:0; color:var(--primary); text-align:center;">🏢 Assign Section for Incoming Expat</h3>
             <p style="text-align:center; color:var(--text-light); font-size:13px;">Please specify the section request for <strong id="modal-target-name" style="color:var(--text);"></strong>.</p>
             
-            <input type="hidden" id="modal-expat-ppt">
+            <input type="hidden" id="modal-expat-prev-ppt">
             <input type="hidden" id="modal-expat-name">
             <input type="hidden" id="modal-expat-tms-status">
             <input type="hidden" id="modal-expat-tms-id">
             <input type="hidden" id="modal-expat-bday">
 
             <div class="form-group" style="margin-top:20px;">
+                <label>Passport Number (Enter New Passport if Renewed)</label>
+                <input type="text" id="modal-expat-ppt" placeholder="ENTER PASSPORT NUMBER">
+            </div>
+
+            <div class="form-group" id="modal-prev-ppt-group">
+                <label>Previous Passport Number (From TMS Excel)</label>
+                <input type="text" id="modal-expat-prev-ppt-display" readonly>
+            </div>
+
+            <div class="form-group">
                 <label>Section Request (e.g. 11A, 11B, Section 12)</label>
                 <input type="text" id="modal-expat-new-section" placeholder="ENTER SECTION NAME">
             </div>
@@ -1117,6 +1155,7 @@
         };
 
         let globalEmployeeRecords = [];
+        let tmsSearchCardData = {};
         let expatRecordsCache = {};
         let sectionRecordsCache = {};
         let selectedExpatMap = new Map(); // Persistent map storing selected record objects across pages
@@ -1543,8 +1582,30 @@
             updateSelectedQuickListDrawer();
         };
 
-        window.openAddExpatModal = function(pptNo, office, name, tmsStatus, tmsIdNumber, birthdate = "") {
-            document.getElementById('modal-expat-ppt').value = pptNo || "N/A";
+        window.openAddExpatModal = function(pptNo, office, name, tmsStatus, tmsIdNumber, birthdate = "", cardIndex = null) {
+            let activePpt = pptNo || "N/A";
+            let prevPpt = "";
+
+            if (cardIndex !== null && tmsSearchCardData[cardIndex]) {
+                const cardInfo = tmsSearchCardData[cardIndex];
+                const newPpt = cardInfo.newPptNo ? cardInfo.newPptNo.trim().toUpperCase() : "";
+                if (newPpt && newPpt !== cardInfo.excelPptNo.toUpperCase()) {
+                    activePpt = newPpt;
+                    prevPpt = cardInfo.excelPptNo;
+                }
+            }
+
+            document.getElementById('modal-expat-ppt').value = activePpt;
+            document.getElementById('modal-expat-prev-ppt').value = prevPpt;
+            document.getElementById('modal-expat-prev-ppt-display').value = prevPpt || "N/A";
+
+            const prevPptGroup = document.getElementById('modal-prev-ppt-group');
+            if (prevPpt) {
+                prevPptGroup.classList.remove('hidden');
+            } else {
+                prevPptGroup.classList.add('hidden');
+            }
+
             document.getElementById('modal-expat-name').value = name || "N/A";
             document.getElementById('modal-expat-tms-status').value = tmsStatus || "NO";
             document.getElementById('modal-expat-tms-id').value = tmsIdNumber || "N/A";
@@ -1561,11 +1622,17 @@
 
         window.processAddExpatRequest = async function() {
             const pptNo = document.getElementById('modal-expat-ppt').value.trim().toUpperCase();
+            const prevPptNo = document.getElementById('modal-expat-prev-ppt').value.trim().toUpperCase();
             const name = document.getElementById('modal-expat-name').value.trim().toUpperCase();
             const tmsStatus = document.getElementById('modal-expat-tms-status').value;
             const tmsIdNumber = document.getElementById('modal-expat-tms-id').value.trim().toUpperCase();
             const bday = document.getElementById('modal-expat-bday').value.trim().toUpperCase();
             const newSection = document.getElementById('modal-expat-new-section').value.trim().toUpperCase();
+
+            if (!pptNo || pptNo === "N/A") {
+                alert("Please enter a valid passport number.");
+                return;
+            }
 
             if (!newSection) {
                 alert("Please enter the section request.");
@@ -1576,6 +1643,7 @@
                 const collRef = collection(db, "incoming_expats");
                 const checks = [];
                 if (pptNo !== "N/A") checks.push(getDocs(query(collRef, where("passportNumber", "==", pptNo))));
+                if (prevPptNo && prevPptNo !== "N/A") checks.push(getDocs(query(collRef, where("passportNumber", "==", prevPptNo))));
                 if (tmsIdNumber !== "N/A") checks.push(getDocs(query(collRef, where("tmsIdNumber", "==", tmsIdNumber))));
 
                 const snapshots = await Promise.all(checks);
@@ -1588,7 +1656,7 @@
                         const recStatus = String(rec.idProcessStatus || "").trim().toUpperCase();
                         if (recStatus === "FOR ID" || recStatus === "CHECKING") {
                             activeDuplicateMatch = rec;
-                            matchReason = (rec.passportNumber === pptNo) ? "Matching Passport Number" : "Matching TMS ID Number";
+                            matchReason = (rec.passportNumber === pptNo || rec.passportNumber === prevPptNo) ? "Matching Passport Number" : "Matching TMS ID Number";
                         }
                     });
                 });
@@ -1607,9 +1675,12 @@
                 }
 
                 const declareDate = formatDateTimeFull();
+                const finalPrevPpt = (prevPptNo && prevPptNo !== pptNo) ? prevPptNo : "";
+
                 await addDoc(collection(db, "incoming_expats"), {
                     declareDate: declareDate,
                     passportNumber: pptNo,
+                    prevPassportNumber: finalPrevPpt,
                     section: newSection,
                     name: name,
                     tmsRecordStatus: tmsStatus,
@@ -1621,7 +1692,7 @@
                     uniformStatus: false,
                     drugTest: "NOT PAID YET",
                     completeDate: "N/A",
-                    remarks: "",
+                    remarks: finalPrevPpt ? `PREV. PPT NO.: ${finalPrevPpt}` : "",
                     registrationStatus: "PENDING",
                     registerDate: "N/A",
                     createdAt: new Date().getTime()
@@ -2278,12 +2349,72 @@ ID NAME: ${rec.idName || "N/A"}`;
             document.getElementById('tms-results-container').innerHTML = '';
         };
 
+        function buildTmsCardText(data) {
+            const trimmedNewPpt = (data.newPptNo || "").trim().toUpperCase();
+            if (trimmedNewPpt) {
+                return `PPT NAME: ${data.pptName}
+PPT NO.: ${trimmedNewPpt}
+W/ PREV. PPT NO.: ${data.excelPptNo}
+W/ RECORD ON TMS: YES
+PREV. OFFICE: ${data.office}
+PREV. SITE: ${data.site}
+LAST STATUS: ${data.status}
+LAST STATUS DATE: ${data.formattedStatusDate}
+TMS ID NUMBER: ${data.tmsId}
+AGE STATUS: ${data.ageStatus}`;
+            }
+
+            return `PPT NAME: ${data.pptName}
+PPT NO.: ${data.excelPptNo}
+W/ RECORD ON TMS: YES
+PREV. OFFICE: ${data.office}
+PREV. SITE: ${data.site}
+LAST STATUS: ${data.status}
+LAST STATUS DATE: ${data.formattedStatusDate}
+TMS ID NUMBER: ${data.tmsId}
+AGE STATUS: ${data.ageStatus}`;
+        }
+
+        window.toggleNewPptInput = function(index) {
+            const bar = document.getElementById(`new-ppt-bar-${index}`);
+            const input = document.getElementById(`new-ppt-input-${index}`);
+            if (!bar) return;
+
+            if (bar.classList.contains('hidden')) {
+                bar.classList.remove('hidden');
+                if (input) input.focus();
+            } else {
+                bar.classList.add('hidden');
+                if (input) input.value = '';
+                window.updateCardNewPpt(index, '');
+            }
+        };
+
+        window.updateCardNewPpt = function(index, val) {
+            const data = tmsSearchCardData[index];
+            if (!data) return;
+
+            data.newPptNo = String(val || "").trim().toUpperCase();
+            const textEl = document.getElementById(`record-card-text-${index}`);
+            if (textEl) {
+                textEl.textContent = buildTmsCardText(data);
+            }
+        };
+
+        window.copyTmsSearchCard = function(index) {
+            const data = tmsSearchCardData[index];
+            if (!data) return;
+            const text = buildTmsCardText(data);
+            window.recordCopyAction(text);
+        };
+
         window.executeSearch = function() {
             const nameQuery = document.getElementById('search-name').value.trim().toUpperCase();
             const passportQuery = document.getElementById('search-passport').value.trim().toUpperCase();
             const bdayQuery = document.getElementById('search-bday').value.trim().toLowerCase();
             const container = document.getElementById('tms-results-container');
             container.innerHTML = '';
+            tmsSearchCardData = {};
 
             if (!nameQuery && !passportQuery && !bdayQuery) {
                 container.innerHTML = `<div class="msg error" style="text-align:center; margin-top:20px;">Please enter at least one search criteria.</div>`;
@@ -2392,38 +2523,20 @@ AGE STATUS: ${ageStatusOutput}`;
                 }
 
                 const formattedStatusDate = formatCleanDate(statusDateRaw);
-                const cardText = 
-`PPT NAME: ${pptName}
-PPT NO.: ${pptNo}
-W/ RECORD ON TMS: YES
-PREV. OFFICE: ${office}
-PREV. SITE: ${site}
-LAST STATUS: ${status}
-LAST STATUS DATE: ${formattedStatusDate}
-TMS ID NUMBER: ${tmsId}
-AGE STATUS: ${ageStatus}`;
 
-                // Check if birthdate matched and searched passport number differs from record passport number
-                const bdayString = String(bdayRaw).trim().toLowerCase();
-                const bdayMatched = !!(bdayQuery && (bdayString === bdayQuery || formattedBday.toLowerCase() === bdayQuery || bdayString.includes(bdayQuery)));
-                const hasDifferentPassport = !!(passportQuery && pptNo.toUpperCase() !== passportQuery);
-                const showDiffPassportCopyBtn = bdayMatched && hasDifferentPassport;
+                tmsSearchCardData[index] = {
+                    pptName,
+                    excelPptNo: pptNo,
+                    newPptNo: "",
+                    office,
+                    site,
+                    status,
+                    formattedStatusDate,
+                    tmsId,
+                    ageStatus
+                };
 
-                const diffPassportCopyText =
-`PPT NAME: ${pptName}
-PPT NO.: ${passportQuery}
-PREV. PPT NO.: ${pptNo}
-W/ RECORD ON TMS: YES
-PREV. OFFICE: ${office}
-PREV. SITE: ${site}
-LAST STATUS: ${status}
-LAST STATUS DATE: ${formattedStatusDate}
-TMS ID NUMBER: ${tmsId}
-AGE STATUS: ${ageStatus}`;
-
-                const diffPassportBtnHtml = showDiffPassportCopyBtn
-                    ? `<button class="badge-copy-diff-ppt" onclick="recordCopyAction(\`${escapeQuote(diffPassportCopyText)}\`, 'Copied with searched PPT NO. (${escapeQuote(passportQuery)}) and PREV. PPT NO. (${escapeQuote(pptNo)})!')">🔄 Copy w/ New PPT NO.</button>`
-                    : '';
+                const cardText = buildTmsCardText(tmsSearchCardData[index]);
 
                 const card = document.createElement('div');
                 card.className = 'record-card';
@@ -2431,20 +2544,25 @@ AGE STATUS: ${ageStatus}`;
                     <div class="card-header">
                         <strong>Record #${index + 1}</strong>
                         <div>
-                            <button class="badge-copy" onclick="recordCopyAction(\`${escapeQuote(cardText)}\`)">📋 Copy Record</button>
-                            ${diffPassportBtnHtml}
-                            <button class="btn-add-expat" onclick="openAddExpatModal('${escapeQuote(showDiffPassportCopyBtn ? passportQuery : pptNo)}', '${escapeQuote(office)}', '${escapeQuote(pptName)}', 'YES', '${escapeQuote(tmsId)}', '${escapeQuote(formattedBday)}')">➕ Add to Incoming Expat Portal</button>
+                            <button class="badge-copy" onclick="copyTmsSearchCard(${index})">📋 Copy Record</button>
+                            <button class="badge-new-ppt" onclick="toggleNewPptInput(${index})">🆕 New Passport</button>
+                            <button class="btn-add-expat" onclick="openAddExpatModal('${escapeQuote(pptNo)}', '${escapeQuote(office)}', '${escapeQuote(pptName)}', 'YES', '${escapeQuote(tmsId)}', '${escapeQuote(formattedBday)}', ${index})">➕ Add to Incoming Expat Portal</button>
                         </div>
                     </div>
-                    <div>${cardText}</div>
+                    <div id="new-ppt-bar-${index}" class="new-ppt-bar hidden">
+                        <label for="new-ppt-input-${index}">New Passport No.:</label>
+                        <input type="text" id="new-ppt-input-${index}" placeholder="Enter new passport..." oninput="this.value = this.value.toUpperCase(); updateCardNewPpt(${index}, this.value)">
+                        <span style="font-size:12px; color:#78350f;">(Moves <strong>${escapeHtml(pptNo)}</strong> to <strong>W/ PREV. PPT NO.:</strong>)</span>
+                    </div>
+                    <div id="record-card-text-${index}">${escapeHtml(cardText)}</div>
                 `;
                 container.appendChild(card);
             });
         };
 
-        window.recordCopyAction = async function(text, successAlertMessage = "Record copied to clipboard!") {
+        window.recordCopyAction = async function(text) {
             navigator.clipboard.writeText(text).then(async () => {
-                alert(successAlertMessage);
+                alert("Record copied to clipboard!");
                 try {
                     const activeUser = JSON.parse(sessionStorage.getItem('active_user') || '{}');
                     const userName = activeUser.name || activeUser.email || "Anonymous User";
