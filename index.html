@@ -500,14 +500,47 @@
                     <table>
                         <thead>
                             <tr>
-                                <th>Office / Section</th>
-                                <th>Active Count</th>
-                                <th>On Leave Count</th>
-                                <th>Grand Total</th>
+                                <th rowspan="2" style="vertical-align: middle;">Office / Section</th>
+                                <th colspan="3" style="background-color: #1e40af; color: #fff;">Expat Counts (Permanent, Temporary, VIP)</th>
+                                <th colspan="3" style="background-color: #0f766e; color: #fff;">Local Counts (Local)</th>
+                                <th rowspan="2" style="vertical-align: middle;">Grand Total</th>
+                            </tr>
+                            <tr>
+                                <th>Active</th>
+                                <th>On Leave</th>
+                                <th>Expat Total</th>
+                                <th>Active</th>
+                                <th>On Leave</th>
+                                <th>Local Total</th>
                             </tr>
                         </thead>
                         <tbody id="ops-summary-table-body">
-                            <tr><td colspan="4">Loading cloud counts...</td></tr>
+                            <tr><td colspan="8">Loading cloud counts...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <h3 style="margin-top: 30px; color: var(--primary);">🏢 Breakdown by Company</h3>
+                <div style="overflow-x: auto; margin-top: 12px;">
+                    <table id="ops-company-table">
+                        <thead>
+                            <tr>
+                                <th rowspan="2" style="vertical-align: middle;">Company</th>
+                                <th colspan="3" style="background-color: #1e40af; color: #fff;">Expat Counts (Permanent, Temporary, VIP)</th>
+                                <th colspan="3" style="background-color: #0f766e; color: #fff;">Local Counts (Local)</th>
+                                <th rowspan="2" style="vertical-align: middle;">Grand Total</th>
+                            </tr>
+                            <tr>
+                                <th>Active</th>
+                                <th>On Leave</th>
+                                <th>Expat Total</th>
+                                <th>Active</th>
+                                <th>On Leave</th>
+                                <th>Local Total</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ops-company-table-body">
+                            <tr><td colspan="8">No company counts loaded yet.</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -2118,6 +2151,33 @@ ID NAME: ${rec.idName || "N/A"}`;
             }
         };
 
+        function createEmptyCountsBucket() {
+            return {
+                expatActive: 0,
+                expatLeave: 0,
+                localActive: 0,
+                localLeave: 0
+            };
+        }
+
+        function normalizeStoredBucket(raw) {
+            if (!raw) return createEmptyCountsBucket();
+            if (typeof raw.expatActive === 'undefined' && (typeof raw.active !== 'undefined' || typeof raw.leave !== 'undefined')) {
+                return {
+                    expatActive: raw.active || 0,
+                    expatLeave: raw.leave || 0,
+                    localActive: 0,
+                    localLeave: 0
+                };
+            }
+            return {
+                expatActive: raw.expatActive || 0,
+                expatLeave: raw.expatLeave || 0,
+                localActive: raw.localActive || 0,
+                localLeave: raw.localLeave || 0
+            };
+        }
+
         window.handleOpsDashboardUpload = async function(e) {
             const files = Array.from(e.target.files);
             const statusEl = document.getElementById('ops-upload-status');
@@ -2138,7 +2198,9 @@ ID NAME: ${rec.idName || "N/A"}`;
                     });
                 }
 
-                const countsMap = {};
+                const officeCountsMap = {};
+                const companyCountsMap = {};
+
                 const getValue = (row, possibleKeys) => {
                     for (let k of Object.keys(row)) {
                         for (let p of possibleKeys) {
@@ -2151,14 +2213,46 @@ ID NAME: ${rec.idName || "N/A"}`;
                 parsedRows.forEach(row => {
                     let office = String(getValue(row, ["Office", "PREV. OFFICE", "Previous Office", "Section", "Department"])).trim();
                     if (!office || office.toLowerCase() === "undefined") office = "Unassigned / General";
+
+                    let company = String(getValue(row, ["Company", "Site", "PREV. SITE", "Previous Site", "Entity"])).trim();
+                    if (!company || company.toLowerCase() === "undefined") company = "Unassigned / General";
+
+                    let idType = String(getValue(row, ["ID Type", "ID_Type", "Type", "Employee Type"])).trim().toLowerCase();
                     let status = String(getValue(row, ["Status", "LAST STATUS", "Last Status", "Employment Status"])).trim().toLowerCase();
 
-                    if (status.includes("active") || status.includes("employed") || status.includes("duty") || status.includes("normal") || (!status.includes("leave") && !status.includes("resigned") && !status.includes("block") && !status.includes("term"))) {
-                        if (!countsMap[office]) countsMap[office] = { active: 0, leave: 0 };
-                        countsMap[office].active += 1;
-                    } else if (status.includes("leave") || status.includes("vacation")) {
-                        if (!countsMap[office]) countsMap[office] = { active: 0, leave: 0 };
-                        countsMap[office].leave += 1;
+                    const isExpat = idType === "permanent" || idType === "temporary" || idType === "vip";
+                    const isLocal = idType === "local";
+                    if (!isExpat && !isLocal) return;
+
+                    const isLeave = status.includes("leave") || status.includes("vacation");
+                    const isActive = !isLeave && (
+                        status.includes("active") ||
+                        status.includes("employed") ||
+                        status.includes("duty") ||
+                        status.includes("normal") ||
+                        (!status.includes("resigned") && !status.includes("block") && !status.includes("term") && !status.includes("inactive"))
+                    );
+                    if (!isActive && !isLeave) return;
+
+                    if (!officeCountsMap[office]) officeCountsMap[office] = createEmptyCountsBucket();
+                    if (!companyCountsMap[company]) companyCountsMap[company] = createEmptyCountsBucket();
+
+                    if (isExpat) {
+                        if (isActive) {
+                            officeCountsMap[office].expatActive += 1;
+                            companyCountsMap[company].expatActive += 1;
+                        } else if (isLeave) {
+                            officeCountsMap[office].expatLeave += 1;
+                            companyCountsMap[company].expatLeave += 1;
+                        }
+                    } else if (isLocal) {
+                        if (isActive) {
+                            officeCountsMap[office].localActive += 1;
+                            companyCountsMap[company].localActive += 1;
+                        } else if (isLeave) {
+                            officeCountsMap[office].localLeave += 1;
+                            companyCountsMap[company].localLeave += 1;
+                        }
                     }
                 });
 
@@ -2167,14 +2261,19 @@ ID NAME: ${rec.idName || "N/A"}`;
                 const timestamp = formatDateTimeFull();
                 const metaData = { fileName: fileNames, uploader: uploaderName, timestamp: timestamp };
 
-                await setDoc(doc(db, "admin_ops_analytics", "latest_counts"), { data: countsMap, meta: metaData });
+                await setDoc(doc(db, "admin_ops_analytics", "latest_counts"), {
+                    data: officeCountsMap,
+                    companyData: companyCountsMap,
+                    meta: metaData
+                });
 
                 statusEl.textContent = `Dashboard counts successfully calculated and saved to cloud!`;
                 statusEl.className = "msg success";
 
                 updateOpsUploadMeta(metaData.fileName, metaData.uploader, metaData.timestamp);
                 document.getElementById('ops-upload-box-container').classList.add('hidden');
-                renderOpsTable(countsMap);
+                renderOpsBreakdownTable('ops-summary-table-body', officeCountsMap);
+                renderOpsBreakdownTable('ops-company-table-body', companyCountsMap);
             } catch (err) {
                 statusEl.textContent = "Error saving to cloud: " + err.message;
                 statusEl.className = "msg error";
@@ -2182,23 +2281,28 @@ ID NAME: ${rec.idName || "N/A"}`;
         };
 
         async function loadCloudOpsDashboardCounts() {
-            const tbodyEl = document.getElementById('ops-summary-table-body');
-            tbodyEl.innerHTML = `<tr><td colspan="4">Loading cloud counts...</td></tr>`;
+            const officeTbody = document.getElementById('ops-summary-table-body');
+            const companyTbody = document.getElementById('ops-company-table-body');
+            officeTbody.innerHTML = `<tr><td colspan="8">Loading cloud counts...</td></tr>`;
+            companyTbody.innerHTML = `<tr><td colspan="8">Loading company counts...</td></tr>`;
 
             try {
                 const docSnap = await getDocs(collection(db, "admin_ops_analytics"));
-                let countsMap = null;
+                let officeCountsMap = null;
+                let companyCountsMap = null;
                 let metaData = null;
-                
+
                 docSnap.forEach(d => {
                     if (d.id === "latest_counts") {
-                        countsMap = d.data().data;
+                        officeCountsMap = d.data().data;
+                        companyCountsMap = d.data().companyData || {};
                         metaData = d.data().meta;
                     }
                 });
 
-                if (!countsMap) {
-                    tbodyEl.innerHTML = `<tr><td colspan="4" style="color:var(--text-light);">No cloud counts recorded yet. Upload an Excel roster file above.</td></tr>`;
+                if (!officeCountsMap) {
+                    officeTbody.innerHTML = `<tr><td colspan="8" style="color:var(--text-light);">No cloud counts recorded yet. Upload an Excel roster file above.</td></tr>`;
+                    companyTbody.innerHTML = `<tr><td colspan="8" style="color:var(--text-light);">No company counts recorded yet. Upload an Excel roster file above.</td></tr>`;
                     document.getElementById('ops-upload-box-container').classList.remove('hidden');
                     document.getElementById('ops-upload-meta-box').classList.add('hidden');
                     return;
@@ -2212,9 +2316,11 @@ ID NAME: ${rec.idName || "N/A"}`;
                     document.getElementById('ops-upload-meta-box').classList.add('hidden');
                 }
 
-                renderOpsTable(countsMap);
+                renderOpsBreakdownTable('ops-summary-table-body', officeCountsMap);
+                renderOpsBreakdownTable('ops-company-table-body', companyCountsMap);
             } catch (e) {
-                tbodyEl.innerHTML = `<tr><td colspan="4" style="color:var(--error);">Error loading cloud counts: ${e.message}</td></tr>`;
+                officeTbody.innerHTML = `<tr><td colspan="8" style="color:var(--error);">Error loading cloud counts: ${e.message}</td></tr>`;
+                companyTbody.innerHTML = `<tr><td colspan="8" style="color:var(--error);">Error loading company counts: ${e.message}</td></tr>`;
             }
         }
 
@@ -2230,37 +2336,58 @@ ID NAME: ${rec.idName || "N/A"}`;
             document.getElementById('ops-upload-meta-box').classList.remove('hidden');
         }
 
-        function renderOpsTable(countsMap) {
-            const tbodyEl = document.getElementById('ops-summary-table-body');
+        function renderOpsBreakdownTable(tbodyId, countsMap) {
+            const tbodyEl = document.getElementById(tbodyId);
             tbodyEl.innerHTML = "";
-            let totalActive = 0, totalLeave = 0, totalGrand = 0;
 
-            Object.keys(countsMap).sort().forEach(office => {
-                const item = countsMap[office];
-                const activeCount = item.active || 0;
-                const leaveCount = item.leave || 0;
-                const grandTotal = activeCount + leaveCount;
+            const keys = Object.keys(countsMap || {}).sort();
+            if (keys.length === 0) {
+                tbodyEl.innerHTML = `<tr><td colspan="8" style="color:var(--text-light);">No data available for this breakdown.</td></tr>`;
+                return;
+            }
 
-                totalActive += activeCount;
-                totalLeave += leaveCount;
-                totalGrand += grandTotal;
+            let sumExpatActive = 0, sumExpatLeave = 0;
+            let sumLocalActive = 0, sumLocalLeave = 0;
+
+            keys.forEach(label => {
+                const item = normalizeStoredBucket(countsMap[label]);
+                const expatTotal = item.expatActive + item.expatLeave;
+                const localTotal = item.localActive + item.localLeave;
+                const grandTotal = expatTotal + localTotal;
+
+                sumExpatActive += item.expatActive;
+                sumExpatLeave += item.expatLeave;
+                sumLocalActive += item.localActive;
+                sumLocalLeave += item.localLeave;
 
                 tbodyEl.innerHTML += `
                     <tr>
-                        <td style="font-weight:bold; text-align:left;">${escapeHtml(office)}</td>
-                        <td class="val-active">${activeCount}</td>
-                        <td class="val-leave">${leaveCount}</td>
+                        <td style="font-weight:bold; text-align:left;">${escapeHtml(label)}</td>
+                        <td class="val-active">${item.expatActive}</td>
+                        <td class="val-leave">${item.expatLeave}</td>
+                        <td style="font-weight:bold; color:#1d4ed8;">${expatTotal}</td>
+                        <td class="val-active">${item.localActive}</td>
+                        <td class="val-leave">${item.localLeave}</td>
+                        <td style="font-weight:bold; color:#0f766e;">${localTotal}</td>
                         <td class="val-total">${grandTotal}</td>
                     </tr>
                 `;
             });
 
+            const totalExpatAll = sumExpatActive + sumExpatLeave;
+            const totalLocalAll = sumLocalActive + sumLocalLeave;
+            const totalGrandAll = totalExpatAll + totalLocalAll;
+
             tbodyEl.innerHTML += `
                 <tr style="background-color: #f1f5f9; font-weight: bold;">
                     <td style="text-align: left;">TOTAL COUNTS</td>
-                    <td class="val-active">${totalActive}</td>
-                    <td class="val-leave">${totalLeave}</td>
-                    <td class="val-total">${totalGrand}</td>
+                    <td class="val-active">${sumExpatActive}</td>
+                    <td class="val-leave">${sumExpatLeave}</td>
+                    <td style="color:#1d4ed8;">${totalExpatAll}</td>
+                    <td class="val-active">${sumLocalActive}</td>
+                    <td class="val-leave">${sumLocalLeave}</td>
+                    <td style="color:#0f766e;">${totalLocalAll}</td>
+                    <td class="val-total">${totalGrandAll}</td>
                 </tr>
             `;
         }
