@@ -499,7 +499,6 @@
                             <option value="ALL">All Offices / Sections</option>
                         </select>
                         <button class="btn btn-clear" style="padding: 6px 12px; font-size:12px;" onclick="resetOpsOfficeFilter()">Reset</button>
-                        <button class="btn btn-admin" style="padding: 6px 12px; font-size:12px;" onclick="openSectionGroupModal()">🗂️ Create / Manage Section Group</button>
                         <button class="btn btn-danger" style="padding: 6px 12px; font-size:12px;" onclick="clearCloudOpsCounts()">Clear Cloud Counts</button>
                     </div>
                 </div>
@@ -534,11 +533,13 @@
                                 <th style="background-color: var(--admin-bg);">Expat Count (Active &amp; On Leave)</th>
                                 <th style="background-color: var(--admin-bg);">Local Count (Active &amp; On Leave)</th>
                                 <th style="background-color: var(--admin-bg);">Grand Total</th>
+                                <th style="background-color: var(--admin-bg);">TOTAL ALLOTTED HEADCOUNTS</th>
+                                <th style="background-color: var(--admin-bg);">BALANCE</th>
                                 <th style="background-color: var(--admin-bg);">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="ops-group-table-body">
-                            <tr><td colspan="6" style="color:var(--text-light);">No section groups created yet. Click "Create / Manage Section Group" to set up a group.</td></tr>
+                            <tr><td colspan="8" style="color:var(--text-light);">No section groups created yet. Click "➕ Add / Edit Section Group" to set up a group.</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -1197,9 +1198,15 @@
             </p>
             <input type="hidden" id="group-edit-id">
 
-            <div class="form-group">
-                <label for="group-name-input">Group Name</label>
-                <input type="text" id="group-name-input" placeholder="e.g. Building 11 Operations, Tower 12 Cluster">
+            <div style="display:grid; grid-template-columns: 1.4fr 1fr; gap: 12px;">
+                <div class="form-group">
+                    <label for="group-name-input">Group Name</label>
+                    <input type="text" id="group-name-input" placeholder="e.g. Building 11 Operations, Tower 12 Cluster">
+                </div>
+                <div class="form-group">
+                    <label for="group-allotted-input">TOTAL ALLOTTED HEADCOUNTS</label>
+                    <input type="number" id="group-allotted-input" min="0" step="1" placeholder="e.g. 250">
+                </div>
             </div>
 
             <div class="form-group">
@@ -2322,6 +2329,10 @@ ID NAME: ${rec.idName || "N/A"}`;
 
             document.getElementById('group-edit-id').value = existingGroup ? existingGroup.id : "";
             document.getElementById('group-name-input').value = existingGroup ? existingGroup.name : "";
+            document.getElementById('group-allotted-input').value =
+                (existingGroup && typeof existingGroup.allottedHeadcounts !== 'undefined' && existingGroup.allottedHeadcounts !== null)
+                    ? existingGroup.allottedHeadcounts
+                    : "";
             document.getElementById('group-section-search').value = "";
 
             const checklistEl = document.getElementById('group-sections-checklist');
@@ -2371,6 +2382,7 @@ ID NAME: ${rec.idName || "N/A"}`;
         window.saveSectionGroup = async function() {
             const editId = document.getElementById('group-edit-id').value.trim();
             const groupName = document.getElementById('group-name-input').value.trim();
+            const allottedRaw = document.getElementById('group-allotted-input').value.trim();
             const selectedSections = Array.from(document.querySelectorAll('.group-sec-checkbox:checked')).map(cb => cb.value);
 
             if (!groupName) {
@@ -2382,19 +2394,22 @@ ID NAME: ${rec.idName || "N/A"}`;
                 return;
             }
 
+            const allottedHeadcounts = allottedRaw === "" ? 0 : Math.max(0, parseInt(allottedRaw, 10) || 0);
+
             let updatedGroups = [...cachedSectionGroups];
             if (editId) {
                 const idx = updatedGroups.findIndex(g => g.id === editId);
                 if (idx !== -1) {
-                    updatedGroups[idx] = { id: editId, name: groupName, sections: selectedSections };
+                    updatedGroups[idx] = { id: editId, name: groupName, sections: selectedSections, allottedHeadcounts };
                 } else {
-                    updatedGroups.push({ id: editId, name: groupName, sections: selectedSections });
+                    updatedGroups.push({ id: editId, name: groupName, sections: selectedSections, allottedHeadcounts });
                 }
             } else {
                 updatedGroups.push({
                     id: "grp_" + Date.now(),
                     name: groupName,
-                    sections: selectedSections
+                    sections: selectedSections,
+                    allottedHeadcounts
                 });
             }
 
@@ -2424,23 +2439,37 @@ ID NAME: ${rec.idName || "N/A"}`;
             }
         };
 
+        function formatBalanceBadge(actualTotal, allottedTotal) {
+            const diff = actualTotal - allottedTotal;
+            if (diff > 0) {
+                // Overcount: actual Active & On Leave exceeds allotted headcounts
+                return `<span class="status-badge" style="background-color:#fee2e2; color:#b91c1c;" title="Overcount by ${diff} headcount(s) above allotted">🔺 +${diff} (Overcount)</span>`;
+            } else if (diff < 0) {
+                // Undercount: actual Active & On Leave is below allotted headcounts
+                return `<span class="status-badge" style="background-color:#fef3c7; color:#b45309;" title="Undercount by ${Math.abs(diff)} headcount(s) below allotted">🔻 ${diff} (Undercount)</span>`;
+            }
+            return `<span class="status-badge status-approved" title="Exact match with allotted headcounts">✅ 0 (Exact)</span>`;
+        }
+
         function renderSectionGroupsTable() {
             const tbodyEl = document.getElementById('ops-group-table-body');
             if (!tbodyEl) return;
             tbodyEl.innerHTML = "";
 
             if (!cachedSectionGroups || cachedSectionGroups.length === 0) {
-                tbodyEl.innerHTML = `<tr><td colspan="6" style="color:var(--text-light);">No section groups created yet. Click "Create / Manage Section Group" to set up a group.</td></tr>`;
+                tbodyEl.innerHTML = `<tr><td colspan="8" style="color:var(--text-light);">No section groups created yet. Click "➕ Add / Edit Section Group" to set up a group.</td></tr>`;
                 return;
             }
 
             let totalGroupExpat = 0;
             let totalGroupLocal = 0;
+            let totalGroupAllotted = 0;
 
             cachedSectionGroups.forEach(group => {
                 let grpExpat = 0;
                 let grpLocal = 0;
                 const included = group.sections || [];
+                const allotted = Number(group.allottedHeadcounts) || 0;
 
                 included.forEach(sec => {
                     const bucket = normalizeStoredBucket(cachedOfficeCountsMap[sec]);
@@ -2451,8 +2480,10 @@ ID NAME: ${rec.idName || "N/A"}`;
                 const grpGrand = grpExpat + grpLocal;
                 totalGroupExpat += grpExpat;
                 totalGroupLocal += grpLocal;
+                totalGroupAllotted += allotted;
 
                 const badgesHtml = included.map(s => `<span class="remark-tag" style="margin:2px;">${escapeHtml(s)}</span>`).join(" ");
+                const balanceHtml = formatBalanceBadge(grpGrand, allotted);
 
                 tbodyEl.innerHTML += `
                     <tr>
@@ -2461,6 +2492,8 @@ ID NAME: ${rec.idName || "N/A"}`;
                         <td class="val-active">${grpExpat}</td>
                         <td style="font-weight:bold; color:#0f766e;">${grpLocal}</td>
                         <td class="val-total">${grpGrand}</td>
+                        <td style="font-weight:bold; color:#334155;">${allotted}</td>
+                        <td style="white-space:nowrap;">${balanceHtml}</td>
                         <td style="white-space:nowrap;">
                             <button class="btn btn-clear" style="padding:3px 8px; font-size:11px;" onclick="openSectionGroupModal('${escapeQuote(group.id)}')">✏️ Edit</button>
                             <button class="btn btn-danger" style="padding:3px 8px; font-size:11px;" onclick="deleteSectionGroup('${escapeQuote(group.id)}')">Delete</button>
@@ -2470,12 +2503,16 @@ ID NAME: ${rec.idName || "N/A"}`;
             });
 
             const totalAllGroups = totalGroupExpat + totalGroupLocal;
+            const totalBalanceHtml = formatBalanceBadge(totalAllGroups, totalGroupAllotted);
+
             tbodyEl.innerHTML += `
                 <tr style="background-color: #f3e8ff; font-weight: bold;">
                     <td colspan="2" style="text-align: left; color: var(--admin-bg);">TOTAL GROUPED COUNTS (${cachedSectionGroups.length} Group${cachedSectionGroups.length > 1 ? 's' : ''})</td>
                     <td class="val-active">${totalGroupExpat}</td>
                     <td style="color:#0f766e;">${totalGroupLocal}</td>
                     <td class="val-total">${totalAllGroups}</td>
+                    <td style="color:#334155;">${totalGroupAllotted}</td>
+                    <td style="white-space:nowrap;">${totalBalanceHtml}</td>
                     <td>-</td>
                 </tr>
             `;
