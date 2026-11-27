@@ -519,9 +519,12 @@
                     </table>
                 </div>
 
-                <!-- GROUP OF SECTIONS SUMMARY TABLE -->
+                <!-- GROUP OF SECTIONS SUMMARY TABLE (EXCLUDES SPTC TAG) -->
                 <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-top: 30px; border-bottom: 2px solid var(--border); padding-bottom: 8px;">
-                    <h3 style="margin:0; color: var(--admin-bg);">🗂️ Group of Sections Summary Table</h3>
+                    <div>
+                        <h3 style="margin:0; color: var(--admin-bg);">🗂️ Group of Sections Summary Table</h3>
+                        <span style="font-size:12px; color:var(--text-light);">Excludes rows tagged with <strong>SPTC</strong> in the <code>Tags</code> column.</span>
+                    </div>
                     <button class="btn btn-admin" style="padding: 6px 12px; font-size:12px;" onclick="openSectionGroupModal()">➕ Add / Edit Section Group</button>
                 </div>
                 <div style="overflow-x: auto; margin-top: 12px;">
@@ -538,6 +541,30 @@
                         </thead>
                         <tbody id="ops-group-table-body">
                             <tr><td colspan="6" style="color:var(--text-light);">No section groups created yet. Click "➕ Add / Edit Section Group" to set up a group.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- SEPARATED GROUP OF SECTIONS SUMMARY TABLE (SPTC TAG ONLY) -->
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-top: 24px; border-bottom: 2px solid #cbd5e1; padding-bottom: 8px;">
+                    <div>
+                        <h3 style="margin:0; color: #0f766e;">🏷️ Group of Sections Summary Table — SPTC Only</h3>
+                        <span style="font-size:12px; color:var(--text-light);">Counts only rows containing <strong>SPTC</strong> in the <code>Tags</code> column using the same section groups.</span>
+                    </div>
+                </div>
+                <div style="overflow-x: auto; margin-top: 12px;">
+                    <table id="ops-group-sptc-table">
+                        <thead>
+                            <tr>
+                                <th style="background-color: #0f766e;">Group Name</th>
+                                <th style="background-color: #0f766e;">Included Offices / Sections</th>
+                                <th style="background-color: #0f766e;">Expat Count (Active &amp; On Leave)</th>
+                                <th style="background-color: #0f766e;">Total Allotted Headcounts</th>
+                                <th style="background-color: #0f766e;">Balance</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ops-group-sptc-table-body">
+                            <tr><td colspan="5" style="color:var(--text-light);">No section groups created yet. Click "➕ Add / Edit Section Group" to set up a group.</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -2283,8 +2310,19 @@ ID NAME: ${rec.idName || "N/A"}`;
         };
 
         let cachedOfficeCountsMap = {};
+        let cachedOfficeNonSptcExpatMap = {};
+        let cachedOfficeSptcExpatMap = {};
         let cachedCompanyCountsMap = {};
-        let cachedSectionGroups = []; // [{ id, name, sections: [...] }]
+        let cachedSectionGroups = []; // [{ id, name, sections: [...], allottedHeadcounts }]
+
+        function hasSptcTag(rawTags) {
+            if (!rawTags) return false;
+            const tokens = String(rawTags)
+                .split(/[,;|/\s]+/)
+                .map(t => t.trim().toUpperCase())
+                .filter(Boolean);
+            return tokens.includes("SPTC");
+        }
 
         function createEmptyCountsBucket() {
             return {
@@ -2491,16 +2529,21 @@ ID NAME: ${rec.idName || "N/A"}`;
 
         function renderSectionGroupsTable() {
             const tbodyEl = document.getElementById('ops-group-table-body');
+            const sptcGroupTbodyEl = document.getElementById('ops-group-sptc-table-body');
             const expatGroupTbodyEl = document.getElementById('ops-group-expat-table-body');
             const localGroupTbodyEl = document.getElementById('ops-group-local-table-body');
             if (!tbodyEl) return;
 
             tbodyEl.innerHTML = "";
+            if (sptcGroupTbodyEl) sptcGroupTbodyEl.innerHTML = "";
             if (expatGroupTbodyEl) expatGroupTbodyEl.innerHTML = "";
             if (localGroupTbodyEl) localGroupTbodyEl.innerHTML = "";
 
             if (!cachedSectionGroups || cachedSectionGroups.length === 0) {
                 tbodyEl.innerHTML = `<tr><td colspan="6" style="color:var(--text-light);">No section groups created yet. Click "➕ Add / Edit Section Group" to set up a group.</td></tr>`;
+                if (sptcGroupTbodyEl) {
+                    sptcGroupTbodyEl.innerHTML = `<tr><td colspan="5" style="color:var(--text-light);">No section groups created yet. Click "➕ Add / Edit Section Group" to set up a group.</td></tr>`;
+                }
                 if (expatGroupTbodyEl) {
                     expatGroupTbodyEl.innerHTML = `<tr><td colspan="3" style="color:var(--text-light);">No section groups created yet.</td></tr>`;
                 }
@@ -2510,36 +2553,49 @@ ID NAME: ${rec.idName || "N/A"}`;
                 return;
             }
 
-            let totalGroupExpat = 0;
+            const hasTagBreakdown = Object.keys(cachedOfficeNonSptcExpatMap || {}).length > 0 || Object.keys(cachedOfficeSptcExpatMap || {}).length > 0;
+
+            let totalGroupNonSptcExpat = 0;
+            let totalGroupSptcExpat = 0;
             let totalGroupLocal = 0;
             let totalGroupAllotted = 0;
 
             cachedSectionGroups.forEach(group => {
-                let grpExpat = 0;
+                let grpNonSptcExpat = 0;
+                let grpSptcExpat = 0;
                 let grpLocal = 0;
                 const included = group.sections || [];
                 const allotted = Number(group.allottedHeadcounts) || 0;
 
                 included.forEach(sec => {
                     const bucket = normalizeStoredBucket(cachedOfficeCountsMap[sec]);
-                    grpExpat += bucket.expat;
                     grpLocal += bucket.local;
+
+                    if (hasTagBreakdown) {
+                        grpNonSptcExpat += Number(cachedOfficeNonSptcExpatMap[sec] || 0);
+                        grpSptcExpat += Number(cachedOfficeSptcExpatMap[sec] || 0);
+                    } else {
+                        grpNonSptcExpat += bucket.expat;
+                        grpSptcExpat += 0;
+                    }
                 });
 
-                totalGroupExpat += grpExpat;
+                totalGroupNonSptcExpat += grpNonSptcExpat;
+                totalGroupSptcExpat += grpSptcExpat;
                 totalGroupLocal += grpLocal;
                 totalGroupAllotted += allotted;
 
                 const badgesHtml = included.map(s => `<span class="remark-tag" style="margin:2px;">${escapeHtml(s)}</span>`).join(" ");
-                const balanceHtml = formatBalanceBadge(grpExpat, allotted);
+                const nonSptcBalanceHtml = formatBalanceBadge(grpNonSptcExpat, allotted);
+                const sptcBalanceHtml = formatBalanceBadge(grpSptcExpat, allotted);
 
                 tbodyEl.innerHTML += `
                     <tr>
                         <td style="font-weight:bold; text-align:left; color:var(--admin-bg);">${escapeHtml(group.name)}</td>
                         <td style="text-align:left; max-width:340px;">${badgesHtml}</td>
-                        <td class="val-active">${grpExpat}</td>
+                        <td class="val-active">${grpNonSptcExpat}</td>
                         <td style="font-weight:bold; color:#334155;">${allotted}</td>
-                        <td style="white-space:nowrap;">${balanceHtml}</td>
+                        <td style="white-space:nowrap;">${nonSptcBalanceHtml}</td>
                         <td style="white-space:nowrap;">
                             <button class="btn btn-clear" style="padding:3px 8px; font-size:11px;" onclick="openSectionGroupModal('${escapeQuote(group.id)}')">✏️ Edit</button>
                             <button class="btn btn-danger" style="padding:3px 8px; font-size:11px;" onclick="deleteSectionGroup('${escapeQuote(group.id)}')">Delete</button>
@@ -2547,12 +2603,24 @@ ID NAME: ${rec.idName || "N/A"}`;
                     </tr>
                 `;
 
+                if (sptcGroupTbodyEl) {
+                    sptcGroupTbodyEl.innerHTML += `
+                        <tr>
+                            <td style="font-weight:bold; text-align:left; color:#0f766e;">${escapeHtml(group.name)}</td>
+                            <td style="text-align:left; max-width:340px;">${badgesHtml}</td>
+                            <td style="font-weight:bold; color:#0f766e;">${grpSptcExpat}</td>
+                            <td style="font-weight:bold; color:#334155;">${allotted}</td>
+                            <td style="white-space:nowrap;">${sptcBalanceHtml}</td>
+                        </tr>
+                    `;
+                }
+
                 if (expatGroupTbodyEl) {
                     expatGroupTbodyEl.innerHTML += `
                         <tr>
                             <td style="font-weight:bold; text-align:left; color:#059669;">${escapeHtml(group.name)}</td>
                             <td style="text-align:left; max-width:260px;">${badgesHtml}</td>
-                            <td style="font-weight:bold; color:#059669;">${grpExpat}</td>
+                            <td style="font-weight:bold; color:#059669;">${grpNonSptcExpat}</td>
                         </tr>
                     `;
                 }
@@ -2568,23 +2636,35 @@ ID NAME: ${rec.idName || "N/A"}`;
                 }
             });
 
-            const totalBalanceHtml = formatBalanceBadge(totalGroupExpat, totalGroupAllotted);
+            const totalNonSptcBalanceHtml = formatBalanceBadge(totalGroupNonSptcExpat, totalGroupAllotted);
+            const totalSptcBalanceHtml = formatBalanceBadge(totalGroupSptcExpat, totalGroupAllotted);
 
             tbodyEl.innerHTML += `
                 <tr style="background-color: #f3e8ff; font-weight: bold;">
                     <td colspan="2" style="text-align: left; color: var(--admin-bg);">TOTAL GROUPED COUNTS (${cachedSectionGroups.length} Group${cachedSectionGroups.length > 1 ? 's' : ''})</td>
-                    <td class="val-active">${totalGroupExpat}</td>
+                    <td class="val-active">${totalGroupNonSptcExpat}</td>
                     <td style="color:#334155;">${totalGroupAllotted}</td>
-                    <td style="white-space:nowrap;">${totalBalanceHtml}</td>
+                    <td style="white-space:nowrap;">${totalNonSptcBalanceHtml}</td>
                     <td>-</td>
                 </tr>
             `;
+
+            if (sptcGroupTbodyEl) {
+                sptcGroupTbodyEl.innerHTML += `
+                    <tr style="background-color: #f0fdfa; font-weight: bold;">
+                        <td colspan="2" style="text-align: left; color: #0f766e;">TOTAL SPTC GROUPED COUNTS (${cachedSectionGroups.length} Group${cachedSectionGroups.length > 1 ? 's' : ''})</td>
+                        <td style="color:#0f766e;">${totalGroupSptcExpat}</td>
+                        <td style="color:#334155;">${totalGroupAllotted}</td>
+                        <td style="white-space:nowrap;">${totalSptcBalanceHtml}</td>
+                    </tr>
+                `;
+            }
 
             if (expatGroupTbodyEl) {
                 expatGroupTbodyEl.innerHTML += `
                     <tr style="background-color: #ecfdf5; font-weight: bold;">
                         <td colspan="2" style="text-align: left; color: #059669;">TOTAL GROUPED EXPAT COUNTS</td>
-                        <td style="color:#059669;">${totalGroupExpat}</td>
+                        <td style="color:#059669;">${totalGroupNonSptcExpat}</td>
                     </tr>
                 `;
             }
@@ -2663,6 +2743,8 @@ ID NAME: ${rec.idName || "N/A"}`;
                 }
 
                 const officeCountsMap = {};
+                const officeNonSptcExpatMap = {};
+                const officeSptcExpatMap = {};
                 const companyCountsMap = {};
 
                 const getValue = (row, possibleKeys) => {
@@ -2687,6 +2769,8 @@ ID NAME: ${rec.idName || "N/A"}`;
 
                     let idType = String(getValue(row, ["ID Type", "ID_Type", "Type", "Employee Type"])).trim().toLowerCase();
                     let status = String(getValue(row, ["Status", "LAST STATUS", "Last Status", "Employment Status"])).trim().toLowerCase();
+                    let tagsRaw = getValue(row, ["Tags", "Tag", "TAG", "TAGS"]);
+                    const isSptc = hasSptcTag(tagsRaw);
 
                     if (!ALLOWED_STATUSES.has(status)) return;
 
@@ -2695,11 +2779,18 @@ ID NAME: ${rec.idName || "N/A"}`;
                     if (!isExpat && !isLocal) return;
 
                     if (!officeCountsMap[office]) officeCountsMap[office] = createEmptyCountsBucket();
+                    if (typeof officeNonSptcExpatMap[office] === 'undefined') officeNonSptcExpatMap[office] = 0;
+                    if (typeof officeSptcExpatMap[office] === 'undefined') officeSptcExpatMap[office] = 0;
                     if (!companyCountsMap[company]) companyCountsMap[company] = createEmptyCountsBucket();
 
                     if (isExpat) {
                         officeCountsMap[office].expat += 1;
                         companyCountsMap[company].expat += 1;
+                        if (isSptc) {
+                            officeSptcExpatMap[office] += 1;
+                        } else {
+                            officeNonSptcExpatMap[office] += 1;
+                        }
                     } else if (isLocal) {
                         officeCountsMap[office].local += 1;
                         companyCountsMap[company].local += 1;
@@ -2713,11 +2804,15 @@ ID NAME: ${rec.idName || "N/A"}`;
 
                 await setDoc(doc(db, "admin_ops_analytics", "latest_counts"), {
                     data: officeCountsMap,
+                    nonSptcExpatData: officeNonSptcExpatMap,
+                    sptcExpatData: officeSptcExpatMap,
                     companyData: companyCountsMap,
                     meta: metaData
                 });
 
                 cachedOfficeCountsMap = officeCountsMap;
+                cachedOfficeNonSptcExpatMap = officeNonSptcExpatMap;
+                cachedOfficeSptcExpatMap = officeSptcExpatMap;
                 cachedCompanyCountsMap = companyCountsMap;
 
                 statusEl.textContent = `Dashboard counts successfully calculated and saved to cloud!`;
@@ -2748,15 +2843,20 @@ ID NAME: ${rec.idName || "N/A"}`;
             try {
                 const docSnap = await getDocs(collection(db, "admin_ops_analytics"));
                 let officeCountsMap = null;
+                let officeNonSptcExpatMap = {};
+                let officeSptcExpatMap = {};
                 let companyCountsMap = null;
                 let metaData = null;
                 let loadedGroups = [];
 
                 docSnap.forEach(d => {
                     if (d.id === "latest_counts") {
-                        officeCountsMap = d.data().data;
-                        companyCountsMap = d.data().companyData || {};
-                        metaData = d.data().meta;
+                        const rawDoc = d.data();
+                        officeCountsMap = rawDoc.data;
+                        officeNonSptcExpatMap = rawDoc.nonSptcExpatData || {};
+                        officeSptcExpatMap = rawDoc.sptcExpatData || {};
+                        companyCountsMap = rawDoc.companyData || {};
+                        metaData = rawDoc.meta;
                     } else if (d.id === "section_groups") {
                         loadedGroups = d.data().groups || [];
                     }
@@ -2766,6 +2866,8 @@ ID NAME: ${rec.idName || "N/A"}`;
 
                 if (!officeCountsMap) {
                     cachedOfficeCountsMap = {};
+                    cachedOfficeNonSptcExpatMap = {};
+                    cachedOfficeSptcExpatMap = {};
                     cachedCompanyCountsMap = {};
                     populateOpsOfficeFilter({});
                     officeTbody.innerHTML = `<tr><td colspan="4" style="color:var(--text-light);">No cloud counts recorded yet. Upload an Excel roster file above.</td></tr>`;
@@ -2779,6 +2881,8 @@ ID NAME: ${rec.idName || "N/A"}`;
                 }
 
                 cachedOfficeCountsMap = officeCountsMap;
+                cachedOfficeNonSptcExpatMap = officeNonSptcExpatMap;
+                cachedOfficeSptcExpatMap = officeSptcExpatMap;
                 cachedCompanyCountsMap = companyCountsMap;
 
                 if (metaData) {
