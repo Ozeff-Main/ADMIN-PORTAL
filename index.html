@@ -531,15 +531,13 @@
                                 <th style="background-color: var(--admin-bg);">Group Name</th>
                                 <th style="background-color: var(--admin-bg);">Included Offices / Sections</th>
                                 <th style="background-color: var(--admin-bg);">Expat Count (Active &amp; On Leave)</th>
-                                <th style="background-color: var(--admin-bg);">Local Count (Active &amp; On Leave)</th>
-                                <th style="background-color: var(--admin-bg);">Grand Total</th>
                                 <th style="background-color: var(--admin-bg);">Total Allotted Headcounts</th>
                                 <th style="background-color: var(--admin-bg);">Balance</th>
                                 <th style="background-color: var(--admin-bg);">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="ops-group-table-body">
-                            <tr><td colspan="8" style="color:var(--text-light);">No section groups created yet. Click "➕ Add / Edit Section Group" to set up a group.</td></tr>
+                            <tr><td colspan="6" style="color:var(--text-light);">No section groups created yet. Click "➕ Add / Edit Section Group" to set up a group.</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -2501,7 +2499,7 @@ ID NAME: ${rec.idName || "N/A"}`;
             if (localGroupTbodyEl) localGroupTbodyEl.innerHTML = "";
 
             if (!cachedSectionGroups || cachedSectionGroups.length === 0) {
-                tbodyEl.innerHTML = `<tr><td colspan="8" style="color:var(--text-light);">No section groups created yet. Click "➕ Add / Edit Section Group" to set up a group.</td></tr>`;
+                tbodyEl.innerHTML = `<tr><td colspan="6" style="color:var(--text-light);">No section groups created yet. Click "➕ Add / Edit Section Group" to set up a group.</td></tr>`;
                 if (expatGroupTbodyEl) {
                     expatGroupTbodyEl.innerHTML = `<tr><td colspan="3" style="color:var(--text-light);">No section groups created yet.</td></tr>`;
                 }
@@ -2527,21 +2525,18 @@ ID NAME: ${rec.idName || "N/A"}`;
                     grpLocal += bucket.local;
                 });
 
-                const grpGrand = grpExpat + grpLocal;
                 totalGroupExpat += grpExpat;
                 totalGroupLocal += grpLocal;
                 totalGroupAllotted += allotted;
 
                 const badgesHtml = included.map(s => `<span class="remark-tag" style="margin:2px;">${escapeHtml(s)}</span>`).join(" ");
-                const balanceHtml = formatBalanceBadge(grpGrand, allotted);
+                const balanceHtml = formatBalanceBadge(grpExpat, allotted);
 
                 tbodyEl.innerHTML += `
                     <tr>
                         <td style="font-weight:bold; text-align:left; color:var(--admin-bg);">${escapeHtml(group.name)}</td>
                         <td style="text-align:left; max-width:340px;">${badgesHtml}</td>
                         <td class="val-active">${grpExpat}</td>
-                        <td style="font-weight:bold; color:#0f766e;">${grpLocal}</td>
-                        <td class="val-total">${grpGrand}</td>
                         <td style="font-weight:bold; color:#334155;">${allotted}</td>
                         <td style="white-space:nowrap;">${balanceHtml}</td>
                         <td style="white-space:nowrap;">
@@ -2572,15 +2567,12 @@ ID NAME: ${rec.idName || "N/A"}`;
                 }
             });
 
-            const totalAllGroups = totalGroupExpat + totalGroupLocal;
-            const totalBalanceHtml = formatBalanceBadge(totalAllGroups, totalGroupAllotted);
+            const totalBalanceHtml = formatBalanceBadge(totalGroupExpat, totalGroupAllotted);
 
             tbodyEl.innerHTML += `
                 <tr style="background-color: #f3e8ff; font-weight: bold;">
                     <td colspan="2" style="text-align: left; color: var(--admin-bg);">TOTAL GROUPED COUNTS (${cachedSectionGroups.length} Group${cachedSectionGroups.length > 1 ? 's' : ''})</td>
                     <td class="val-active">${totalGroupExpat}</td>
-                    <td style="color:#0f766e;">${totalGroupLocal}</td>
-                    <td class="val-total">${totalAllGroups}</td>
                     <td style="color:#334155;">${totalGroupAllotted}</td>
                     <td style="white-space:nowrap;">${totalBalanceHtml}</td>
                     <td>-</td>
