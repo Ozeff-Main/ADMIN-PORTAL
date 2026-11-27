@@ -2479,13 +2479,14 @@ ID NAME: ${rec.idName || "N/A"}`;
         function formatBalanceBadge(actualTotal, allottedTotal) {
             const diff = actualTotal - allottedTotal;
             if (diff > 0) {
-                // Overcount: actual Active & On Leave exceeds allotted headcounts
-                return `<span class="status-badge" style="background-color:#fee2e2; color:#b91c1c;" title="Overcount by ${diff} headcount(s) above allotted">🔺 +${diff} (Overcount)</span>`;
+                // Overcount: actual Expat Active & On Leave exceeds allotted headcounts -> Red badge
+                return `<span class="status-badge" style="background-color:#fee2e2; color:#b91c1c; border:1px solid #fca5a5;" title="Overcount by ${diff} headcount(s) above allotted">🔺 +${diff} (Overcount)</span>`;
             } else if (diff < 0) {
-                // Undercount: actual Active & On Leave is below allotted headcounts
-                return `<span class="status-badge" style="background-color:#fef3c7; color:#b45309;" title="Undercount by ${Math.abs(diff)} headcount(s) below allotted">🔻 ${diff} (Undercount)</span>`;
+                // Undercount: actual Expat Active & On Leave is below allotted headcounts -> Green badge
+                return `<span class="status-badge" style="background-color:#dcfce7; color:#15803d; border:1px solid #86efac;" title="Undercount by ${Math.abs(diff)} headcount(s) below allotted">🔻 ${diff} (Undercount)</span>`;
             }
-            return `<span class="status-badge status-approved" title="Exact match with allotted headcounts">✅ 0 (Exact)</span>`;
+            // Exact / Equal match -> Soft emerald/teal-green badge that complements the table
+            return `<span class="status-badge" style="background-color:#d1fae5; color:#047857; border:1px solid #6ee7b7;" title="Exact match with allotted headcounts">✅ 0 (Exact)</span>`;
         }
 
         function renderSectionGroupsTable() {
