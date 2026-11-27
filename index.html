@@ -549,8 +549,9 @@
                 <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-top: 24px; border-bottom: 2px solid #cbd5e1; padding-bottom: 8px;">
                     <div>
                         <h3 style="margin:0; color: #0f766e;">🏷️ Group of Sections Summary Table — SPTC Only</h3>
-                        <span style="font-size:12px; color:var(--text-light);">Counts only rows containing <strong>SPTC</strong> in the <code>Tags</code> column using the same section groups.</span>
+                        <span style="font-size:12px; color:var(--text-light);">Counts only rows containing <strong>SPTC</strong> in the <code>Tags</code> column with independent SPTC group definitions.</span>
                     </div>
+                    <button class="btn" style="padding: 6px 12px; font-size:12px; background-color: #0f766e;" onclick="openSectionGroupModal(null, 'sptc')">➕ Add / Edit SPTC Group</button>
                 </div>
                 <div style="overflow-x: auto; margin-top: 12px;">
                     <table id="ops-group-sptc-table">
@@ -561,10 +562,11 @@
                                 <th style="background-color: #0f766e;">Expat Count (Active &amp; On Leave)</th>
                                 <th style="background-color: #0f766e;">Total Allotted Headcounts</th>
                                 <th style="background-color: #0f766e;">Balance</th>
+                                <th style="background-color: #0f766e;">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="ops-group-sptc-table-body">
-                            <tr><td colspan="5" style="color:var(--text-light);">No section groups created yet. Click "➕ Add / Edit Section Group" to set up a group.</td></tr>
+                            <tr><td colspan="6" style="color:var(--text-light);">No SPTC section groups created yet. Click "➕ Add / Edit SPTC Group" to set up a group.</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -1256,11 +1258,12 @@
     <!-- SECTION GROUP CONFIGURATION MODAL -->
     <div id="ops-section-group-modal" class="modal-overlay hidden">
         <div class="modal-content" style="max-width: 650px;">
-            <h3 style="margin-top:0; color:var(--admin-bg); text-align:center;">🗂️ Configure Group of Sections</h3>
-            <p style="text-align:center; color:var(--text-light); font-size:13px; margin-bottom: 18px;">
+            <h3 id="group-modal-title" style="margin-top:0; color:var(--admin-bg); text-align:center;">🗂️ Configure Group of Sections</h3>
+            <p id="group-modal-subtitle" style="text-align:center; color:var(--text-light); font-size:13px; margin-bottom: 18px;">
                 Set a group name and select the offices/sections to combine into a custom group total.
             </p>
             <input type="hidden" id="group-edit-id">
+            <input type="hidden" id="group-target-type" value="regular">
 
             <div style="display:grid; grid-template-columns: 1.4fr 1fr; gap: 12px;">
                 <div class="form-group">
@@ -2314,6 +2317,7 @@ ID NAME: ${rec.idName || "N/A"}`;
         let cachedOfficeSptcExpatMap = {};
         let cachedCompanyCountsMap = {};
         let cachedSectionGroups = []; // [{ id, name, sections: [...], allottedHeadcounts }]
+        let cachedSptcSectionGroups = []; // [{ id, name, sections: [...], allottedHeadcounts }]
 
         function hasSptcTag(rawTags) {
             if (!rawTags) return false;
@@ -2392,16 +2396,31 @@ ID NAME: ${rec.idName || "N/A"}`;
         };
 
         /* SECTION GROUP MODAL & CRUD LOGIC */
-        window.openSectionGroupModal = function(groupId = null) {
+        window.openSectionGroupModal = function(groupId = null, targetType = 'regular') {
             const offices = Object.keys(cachedOfficeCountsMap || {}).sort();
             if (offices.length === 0) {
                 alert("Please upload an Excel roster first so offices/sections are available to group.");
                 return;
             }
 
-            const existingGroup = groupId ? cachedSectionGroups.find(g => g.id === groupId) : null;
+            const isSptc = targetType === 'sptc';
+            const sourceGroups = isSptc ? cachedSptcSectionGroups : cachedSectionGroups;
+            const existingGroup = groupId ? sourceGroups.find(g => g.id === groupId) : null;
             const selectedSet = new Set(existingGroup ? (existingGroup.sections || []) : []);
 
+            const titleEl = document.getElementById('group-modal-title');
+            const subtitleEl = document.getElementById('group-modal-subtitle');
+            if (titleEl) {
+                titleEl.textContent = isSptc ? "🏷️ Configure SPTC Group of Sections" : "🗂️ Configure Group of Sections";
+                titleEl.style.color = isSptc ? "#0f766e" : "var(--admin-bg)";
+            }
+            if (subtitleEl) {
+                subtitleEl.textContent = isSptc
+                    ? "Set a group name, allotted headcounts, and included offices/sections for SPTC-tagged rows."
+                    : "Set a group name and select the offices/sections to combine into a custom group total.";
+            }
+
+            document.getElementById('group-target-type').value = isSptc ? "sptc" : "regular";
             document.getElementById('group-edit-id').value = existingGroup ? existingGroup.id : "";
             document.getElementById('group-name-input').value = existingGroup ? existingGroup.name : "";
             document.getElementById('group-allotted-input').value =
@@ -2455,6 +2474,8 @@ ID NAME: ${rec.idName || "N/A"}`;
         };
 
         window.saveSectionGroup = async function() {
+            const targetType = document.getElementById('group-target-type').value || 'regular';
+            const isSptc = targetType === 'sptc';
             const editId = document.getElementById('group-edit-id').value.trim();
             const groupName = document.getElementById('group-name-input').value.trim();
             const allottedRaw = document.getElementById('group-allotted-input').value.trim();
@@ -2471,7 +2492,7 @@ ID NAME: ${rec.idName || "N/A"}`;
 
             const allottedHeadcounts = allottedRaw === "" ? 0 : Math.max(0, parseInt(allottedRaw, 10) || 0);
 
-            let updatedGroups = [...cachedSectionGroups];
+            let updatedGroups = isSptc ? [...cachedSptcSectionGroups] : [...cachedSectionGroups];
             if (editId) {
                 const idx = updatedGroups.findIndex(g => g.id === editId);
                 if (idx !== -1) {
@@ -2481,18 +2502,24 @@ ID NAME: ${rec.idName || "N/A"}`;
                 }
             } else {
                 updatedGroups.push({
-                    id: "grp_" + Date.now(),
+                    id: (isSptc ? "sptc_grp_" : "grp_") + Date.now(),
                     name: groupName,
                     sections: selectedSections,
                     allottedHeadcounts
                 });
             }
 
+            const docKey = isSptc ? "sptc_section_groups" : "section_groups";
+
             try {
-                await setDoc(doc(db, "admin_ops_analytics", "section_groups"), {
+                await setDoc(doc(db, "admin_ops_analytics", docKey), {
                     groups: updatedGroups
                 });
-                cachedSectionGroups = updatedGroups;
+                if (isSptc) {
+                    cachedSptcSectionGroups = updatedGroups;
+                } else {
+                    cachedSectionGroups = updatedGroups;
+                }
                 closeSectionGroupModal();
                 renderSectionGroupsTable();
             } catch (e) {
@@ -2500,14 +2527,22 @@ ID NAME: ${rec.idName || "N/A"}`;
             }
         };
 
-        window.deleteSectionGroup = async function(groupId) {
-            if (!confirm("Delete this section group?")) return;
-            const updatedGroups = cachedSectionGroups.filter(g => g.id !== groupId);
+        window.deleteSectionGroup = async function(groupId, targetType = 'regular') {
+            const isSptc = targetType === 'sptc';
+            if (!confirm(isSptc ? "Delete this SPTC section group?" : "Delete this section group?")) return;
+            const sourceGroups = isSptc ? cachedSptcSectionGroups : cachedSectionGroups;
+            const updatedGroups = sourceGroups.filter(g => g.id !== groupId);
+            const docKey = isSptc ? "sptc_section_groups" : "section_groups";
+
             try {
-                await setDoc(doc(db, "admin_ops_analytics", "section_groups"), {
+                await setDoc(doc(db, "admin_ops_analytics", docKey), {
                     groups: updatedGroups
                 });
-                cachedSectionGroups = updatedGroups;
+                if (isSptc) {
+                    cachedSptcSectionGroups = updatedGroups;
+                } else {
+                    cachedSectionGroups = updatedGroups;
+                }
                 renderSectionGroupsTable();
             } catch (e) {
                 alert("Error deleting section group: " + e.message);
@@ -2539,143 +2574,164 @@ ID NAME: ${rec.idName || "N/A"}`;
             if (expatGroupTbodyEl) expatGroupTbodyEl.innerHTML = "";
             if (localGroupTbodyEl) localGroupTbodyEl.innerHTML = "";
 
+            const hasTagBreakdown = Object.keys(cachedOfficeNonSptcExpatMap || {}).length > 0 || Object.keys(cachedOfficeSptcExpatMap || {}).length > 0;
+
+            // 1. Render Main Group of Sections Summary Table (Excludes SPTC)
             if (!cachedSectionGroups || cachedSectionGroups.length === 0) {
                 tbodyEl.innerHTML = `<tr><td colspan="6" style="color:var(--text-light);">No section groups created yet. Click "➕ Add / Edit Section Group" to set up a group.</td></tr>`;
-                if (sptcGroupTbodyEl) {
-                    sptcGroupTbodyEl.innerHTML = `<tr><td colspan="5" style="color:var(--text-light);">No section groups created yet. Click "➕ Add / Edit Section Group" to set up a group.</td></tr>`;
-                }
                 if (expatGroupTbodyEl) {
                     expatGroupTbodyEl.innerHTML = `<tr><td colspan="3" style="color:var(--text-light);">No section groups created yet.</td></tr>`;
                 }
                 if (localGroupTbodyEl) {
                     localGroupTbodyEl.innerHTML = `<tr><td colspan="3" style="color:var(--text-light);">No section groups created yet.</td></tr>`;
                 }
-                return;
-            }
+            } else {
+                let totalGroupNonSptcExpat = 0;
+                let totalGroupLocal = 0;
+                let totalGroupAllotted = 0;
 
-            const hasTagBreakdown = Object.keys(cachedOfficeNonSptcExpatMap || {}).length > 0 || Object.keys(cachedOfficeSptcExpatMap || {}).length > 0;
+                cachedSectionGroups.forEach(group => {
+                    let grpNonSptcExpat = 0;
+                    let grpLocal = 0;
+                    const included = group.sections || [];
+                    const allotted = Number(group.allottedHeadcounts) || 0;
 
-            let totalGroupNonSptcExpat = 0;
-            let totalGroupSptcExpat = 0;
-            let totalGroupLocal = 0;
-            let totalGroupAllotted = 0;
+                    included.forEach(sec => {
+                        const bucket = normalizeStoredBucket(cachedOfficeCountsMap[sec]);
+                        grpLocal += bucket.local;
 
-            cachedSectionGroups.forEach(group => {
-                let grpNonSptcExpat = 0;
-                let grpSptcExpat = 0;
-                let grpLocal = 0;
-                const included = group.sections || [];
-                const allotted = Number(group.allottedHeadcounts) || 0;
+                        if (hasTagBreakdown) {
+                            grpNonSptcExpat += Number(cachedOfficeNonSptcExpatMap[sec] || 0);
+                        } else {
+                            grpNonSptcExpat += bucket.expat;
+                        }
+                    });
 
-                included.forEach(sec => {
-                    const bucket = normalizeStoredBucket(cachedOfficeCountsMap[sec]);
-                    grpLocal += bucket.local;
+                    totalGroupNonSptcExpat += grpNonSptcExpat;
+                    totalGroupLocal += grpLocal;
+                    totalGroupAllotted += allotted;
 
-                    if (hasTagBreakdown) {
-                        grpNonSptcExpat += Number(cachedOfficeNonSptcExpatMap[sec] || 0);
-                        grpSptcExpat += Number(cachedOfficeSptcExpatMap[sec] || 0);
-                    } else {
-                        grpNonSptcExpat += bucket.expat;
-                        grpSptcExpat += 0;
+                    const badgesHtml = included.map(s => `<span class="remark-tag" style="margin:2px;">${escapeHtml(s)}</span>`).join(" ");
+                    const nonSptcBalanceHtml = formatBalanceBadge(grpNonSptcExpat, allotted);
+
+                    tbodyEl.innerHTML += `
+                        <tr>
+                            <td style="font-weight:bold; text-align:left; color:var(--admin-bg);">${escapeHtml(group.name)}</td>
+                            <td style="text-align:left; max-width:340px;">${badgesHtml}</td>
+                            <td class="val-active">${grpNonSptcExpat}</td>
+                            <td style="font-weight:bold; color:#334155;">${allotted}</td>
+                            <td style="white-space:nowrap;">${nonSptcBalanceHtml}</td>
+                            <td style="white-space:nowrap;">
+                                <button class="btn btn-clear" style="padding:3px 8px; font-size:11px;" onclick="openSectionGroupModal('${escapeQuote(group.id)}', 'regular')">✏️ Edit</button>
+                                <button class="btn btn-danger" style="padding:3px 8px; font-size:11px;" onclick="deleteSectionGroup('${escapeQuote(group.id)}', 'regular')">Delete</button>
+                            </td>
+                        </tr>
+                    `;
+
+                    if (expatGroupTbodyEl) {
+                        expatGroupTbodyEl.innerHTML += `
+                            <tr>
+                                <td style="font-weight:bold; text-align:left; color:#059669;">${escapeHtml(group.name)}</td>
+                                <td style="text-align:left; max-width:260px;">${badgesHtml}</td>
+                                <td style="font-weight:bold; color:#059669;">${grpNonSptcExpat}</td>
+                            </tr>
+                        `;
+                    }
+
+                    if (localGroupTbodyEl) {
+                        localGroupTbodyEl.innerHTML += `
+                            <tr>
+                                <td style="font-weight:bold; text-align:left; color:#0f766e;">${escapeHtml(group.name)}</td>
+                                <td style="text-align:left; max-width:260px;">${badgesHtml}</td>
+                                <td style="font-weight:bold; color:#0f766e;">${grpLocal}</td>
+                            </tr>
+                        `;
                     }
                 });
 
-                totalGroupNonSptcExpat += grpNonSptcExpat;
-                totalGroupSptcExpat += grpSptcExpat;
-                totalGroupLocal += grpLocal;
-                totalGroupAllotted += allotted;
-
-                const badgesHtml = included.map(s => `<span class="remark-tag" style="margin:2px;">${escapeHtml(s)}</span>`).join(" ");
-                const nonSptcBalanceHtml = formatBalanceBadge(grpNonSptcExpat, allotted);
-                const sptcBalanceHtml = formatBalanceBadge(grpSptcExpat, allotted);
+                const totalNonSptcBalanceHtml = formatBalanceBadge(totalGroupNonSptcExpat, totalGroupAllotted);
 
                 tbodyEl.innerHTML += `
-                    <tr>
-                        <td style="font-weight:bold; text-align:left; color:var(--admin-bg);">${escapeHtml(group.name)}</td>
-                        <td style="text-align:left; max-width:340px;">${badgesHtml}</td>
-                        <td class="val-active">${grpNonSptcExpat}</td>
-                        <td style="font-weight:bold; color:#334155;">${allotted}</td>
-                        <td style="white-space:nowrap;">${nonSptcBalanceHtml}</td>
-                        <td style="white-space:nowrap;">
-                            <button class="btn btn-clear" style="padding:3px 8px; font-size:11px;" onclick="openSectionGroupModal('${escapeQuote(group.id)}')">✏️ Edit</button>
-                            <button class="btn btn-danger" style="padding:3px 8px; font-size:11px;" onclick="deleteSectionGroup('${escapeQuote(group.id)}')">Delete</button>
-                        </td>
+                    <tr style="background-color: #f3e8ff; font-weight: bold;">
+                        <td colspan="2" style="text-align: left; color: var(--admin-bg);">TOTAL GROUPED COUNTS (${cachedSectionGroups.length} Group${cachedSectionGroups.length > 1 ? 's' : ''})</td>
+                        <td class="val-active">${totalGroupNonSptcExpat}</td>
+                        <td style="color:#334155;">${totalGroupAllotted}</td>
+                        <td style="white-space:nowrap;">${totalNonSptcBalanceHtml}</td>
+                        <td>-</td>
                     </tr>
                 `;
 
-                if (sptcGroupTbodyEl) {
-                    sptcGroupTbodyEl.innerHTML += `
-                        <tr>
-                            <td style="font-weight:bold; text-align:left; color:#0f766e;">${escapeHtml(group.name)}</td>
-                            <td style="text-align:left; max-width:340px;">${badgesHtml}</td>
-                            <td style="font-weight:bold; color:#0f766e;">${grpSptcExpat}</td>
-                            <td style="font-weight:bold; color:#334155;">${allotted}</td>
-                            <td style="white-space:nowrap;">${sptcBalanceHtml}</td>
-                        </tr>
-                    `;
-                }
-
                 if (expatGroupTbodyEl) {
                     expatGroupTbodyEl.innerHTML += `
-                        <tr>
-                            <td style="font-weight:bold; text-align:left; color:#059669;">${escapeHtml(group.name)}</td>
-                            <td style="text-align:left; max-width:260px;">${badgesHtml}</td>
-                            <td style="font-weight:bold; color:#059669;">${grpNonSptcExpat}</td>
+                        <tr style="background-color: #ecfdf5; font-weight: bold;">
+                            <td colspan="2" style="text-align: left; color: #059669;">TOTAL GROUPED EXPAT COUNTS</td>
+                            <td style="color:#059669;">${totalGroupNonSptcExpat}</td>
                         </tr>
                     `;
                 }
 
                 if (localGroupTbodyEl) {
                     localGroupTbodyEl.innerHTML += `
-                        <tr>
-                            <td style="font-weight:bold; text-align:left; color:#0f766e;">${escapeHtml(group.name)}</td>
-                            <td style="text-align:left; max-width:260px;">${badgesHtml}</td>
-                            <td style="font-weight:bold; color:#0f766e;">${grpLocal}</td>
+                        <tr style="background-color: #f0fdfa; font-weight: bold;">
+                            <td colspan="2" style="text-align: left; color: #0f766e;">TOTAL GROUPED LOCAL COUNTS</td>
+                            <td style="color:#0f766e;">${totalGroupLocal}</td>
                         </tr>
                     `;
                 }
-            });
+            }
 
-            const totalNonSptcBalanceHtml = formatBalanceBadge(totalGroupNonSptcExpat, totalGroupAllotted);
-            const totalSptcBalanceHtml = formatBalanceBadge(totalGroupSptcExpat, totalGroupAllotted);
-
-            tbodyEl.innerHTML += `
-                <tr style="background-color: #f3e8ff; font-weight: bold;">
-                    <td colspan="2" style="text-align: left; color: var(--admin-bg);">TOTAL GROUPED COUNTS (${cachedSectionGroups.length} Group${cachedSectionGroups.length > 1 ? 's' : ''})</td>
-                    <td class="val-active">${totalGroupNonSptcExpat}</td>
-                    <td style="color:#334155;">${totalGroupAllotted}</td>
-                    <td style="white-space:nowrap;">${totalNonSptcBalanceHtml}</td>
-                    <td>-</td>
-                </tr>
-            `;
-
+            // 2. Render Independent SPTC Group of Sections Summary Table (SPTC Tag Only)
             if (sptcGroupTbodyEl) {
-                sptcGroupTbodyEl.innerHTML += `
-                    <tr style="background-color: #f0fdfa; font-weight: bold;">
-                        <td colspan="2" style="text-align: left; color: #0f766e;">TOTAL SPTC GROUPED COUNTS (${cachedSectionGroups.length} Group${cachedSectionGroups.length > 1 ? 's' : ''})</td>
-                        <td style="color:#0f766e;">${totalGroupSptcExpat}</td>
-                        <td style="color:#334155;">${totalGroupAllotted}</td>
-                        <td style="white-space:nowrap;">${totalSptcBalanceHtml}</td>
-                    </tr>
-                `;
-            }
+                if (!cachedSptcSectionGroups || cachedSptcSectionGroups.length === 0) {
+                    sptcGroupTbodyEl.innerHTML = `<tr><td colspan="6" style="color:var(--text-light);">No SPTC section groups created yet. Click "➕ Add / Edit SPTC Group" to set up a group.</td></tr>`;
+                } else {
+                    let totalGroupSptcExpat = 0;
+                    let totalSptcAllotted = 0;
 
-            if (expatGroupTbodyEl) {
-                expatGroupTbodyEl.innerHTML += `
-                    <tr style="background-color: #ecfdf5; font-weight: bold;">
-                        <td colspan="2" style="text-align: left; color: #059669;">TOTAL GROUPED EXPAT COUNTS</td>
-                        <td style="color:#059669;">${totalGroupNonSptcExpat}</td>
-                    </tr>
-                `;
-            }
+                    cachedSptcSectionGroups.forEach(group => {
+                        let grpSptcExpat = 0;
+                        const included = group.sections || [];
+                        const allotted = Number(group.allottedHeadcounts) || 0;
 
-            if (localGroupTbodyEl) {
-                localGroupTbodyEl.innerHTML += `
-                    <tr style="background-color: #f0fdfa; font-weight: bold;">
-                        <td colspan="2" style="text-align: left; color: #0f766e;">TOTAL GROUPED LOCAL COUNTS</td>
-                        <td style="color:#0f766e;">${totalGroupLocal}</td>
-                    </tr>
-                `;
+                        included.forEach(sec => {
+                            if (hasTagBreakdown) {
+                                grpSptcExpat += Number(cachedOfficeSptcExpatMap[sec] || 0);
+                            }
+                        });
+
+                        totalGroupSptcExpat += grpSptcExpat;
+                        totalSptcAllotted += allotted;
+
+                        const badgesHtml = included.map(s => `<span class="remark-tag" style="margin:2px;">${escapeHtml(s)}</span>`).join(" ");
+                        const sptcBalanceHtml = formatBalanceBadge(grpSptcExpat, allotted);
+
+                        sptcGroupTbodyEl.innerHTML += `
+                            <tr>
+                                <td style="font-weight:bold; text-align:left; color:#0f766e;">${escapeHtml(group.name)}</td>
+                                <td style="text-align:left; max-width:340px;">${badgesHtml}</td>
+                                <td style="font-weight:bold; color:#0f766e;">${grpSptcExpat}</td>
+                                <td style="font-weight:bold; color:#334155;">${allotted}</td>
+                                <td style="white-space:nowrap;">${sptcBalanceHtml}</td>
+                                <td style="white-space:nowrap;">
+                                    <button class="btn btn-clear" style="padding:3px 8px; font-size:11px;" onclick="openSectionGroupModal('${escapeQuote(group.id)}', 'sptc')">✏️ Edit</button>
+                                    <button class="btn btn-danger" style="padding:3px 8px; font-size:11px;" onclick="deleteSectionGroup('${escapeQuote(group.id)}', 'sptc')">Delete</button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+
+                    const totalSptcBalanceHtml = formatBalanceBadge(totalGroupSptcExpat, totalSptcAllotted);
+
+                    sptcGroupTbodyEl.innerHTML += `
+                        <tr style="background-color: #f0fdfa; font-weight: bold;">
+                            <td colspan="2" style="text-align: left; color: #0f766e;">TOTAL SPTC GROUPED COUNTS (${cachedSptcSectionGroups.length} Group${cachedSptcSectionGroups.length > 1 ? 's' : ''})</td>
+                            <td style="color:#0f766e;">${totalGroupSptcExpat}</td>
+                            <td style="color:#334155;">${totalSptcAllotted}</td>
+                            <td style="white-space:nowrap;">${totalSptcBalanceHtml}</td>
+                            <td>-</td>
+                        </tr>
+                    `;
+                }
             }
         }
 
@@ -2848,6 +2904,7 @@ ID NAME: ${rec.idName || "N/A"}`;
                 let companyCountsMap = null;
                 let metaData = null;
                 let loadedGroups = [];
+                let loadedSptcGroups = [];
 
                 docSnap.forEach(d => {
                     if (d.id === "latest_counts") {
@@ -2859,10 +2916,13 @@ ID NAME: ${rec.idName || "N/A"}`;
                         metaData = rawDoc.meta;
                     } else if (d.id === "section_groups") {
                         loadedGroups = d.data().groups || [];
+                    } else if (d.id === "sptc_section_groups") {
+                        loadedSptcGroups = d.data().groups || [];
                     }
                 });
 
                 cachedSectionGroups = loadedGroups;
+                cachedSptcSectionGroups = loadedSptcGroups;
 
                 if (!officeCountsMap) {
                     cachedOfficeCountsMap = {};
