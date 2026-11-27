@@ -491,17 +491,18 @@
             </div>
 
             <div id="ops-summary-container">
-                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; border-bottom: 2px solid var(--border); padding-bottom:10px; margin-bottom:15px;">
-                    <h3 style="margin:0; color:var(--primary);">Office / Section Status Table (Combined)</h3>
-                    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-                        <label for="ops-office-filter" style="margin:0; font-size:13px; color:#334155;">Filter Office / Section:</label>
-                        <select id="ops-office-filter" style="width:auto; min-width:190px; padding:6px 10px; font-size:13px;" onchange="applyOpsOfficeFilter()">
-                            <option value="ALL">All Offices / Sections</option>
-                        </select>
-                        <button class="btn btn-clear" style="padding: 6px 12px; font-size:12px;" onclick="resetOpsOfficeFilter()">Reset</button>
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; border-bottom: 2px solid var(--border); padding-bottom:10px; margin-bottom:12px;">
+                    <div>
+                        <h3 style="margin:0; color:var(--primary);">Office / Section Status Table (Combined)</h3>
+                        <span id="ops-filter-status-text" style="font-size:12px; color:var(--text-light);">Showing all offices / sections.</span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <button class="btn" style="padding: 6px 12px; font-size:12px;" onclick="openOpsMultiFilterModal()">🔍 Filter Offices / Sections (<span id="ops-filter-count-badge">All</span>)</button>
+                        <button id="ops-reset-filter-btn" class="btn btn-clear hidden" style="padding: 6px 12px; font-size:12px;" onclick="resetOpsOfficeFilter()">Reset Filter</button>
                         <button class="btn btn-danger" style="padding: 6px 12px; font-size:12px;" onclick="clearCloudOpsCounts()">Clear Cloud Counts</button>
                     </div>
                 </div>
+                <div id="ops-active-filter-tags" class="hidden" style="display:flex; flex-wrap:wrap; gap:6px; align-items:center; background:#f8fafc; border:1px solid var(--border); border-radius:6px; padding:8px 12px; margin-bottom:12px;"></div>
                 
                 <div style="overflow-x: auto; margin-top: 10px;">
                     <table id="ops-summary-table">
@@ -1293,6 +1294,35 @@
             <div style="display:flex; gap:10px; margin-top:20px;">
                 <button class="btn btn-clear" style="flex:1;" onclick="saveSectionGroup()">💾 Save Group</button>
                 <button class="btn btn-danger" style="flex:1;" onclick="closeSectionGroupModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MULTI-SELECT OFFICE / SECTION FILTER MODAL -->
+    <div id="ops-multi-filter-modal" class="modal-overlay hidden">
+        <div class="modal-content" style="max-width: 650px;">
+            <h3 style="margin-top:0; color:var(--primary); text-align:center;">🔍 Filter Offices / Sections</h3>
+            <p style="text-align:center; color:var(--text-light); font-size:13px; margin-bottom: 16px;">
+                Select one or more offices/sections to display. Total counts will automatically recalculate based on your selection.
+            </p>
+
+            <div class="form-group">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <label style="margin:0;">Select Offices / Sections to Display (<span id="ops-filter-modal-selected-count">0</span> selected):</label>
+                    <div style="display:flex; gap:8px;">
+                        <button type="button" class="btn btn-clear" style="padding:3px 8px; font-size:11px;" onclick="toggleAllOpsFilterSections(true)">Select All</button>
+                        <button type="button" class="btn btn-danger" style="padding:3px 8px; font-size:11px;" onclick="toggleAllOpsFilterSections(false)">Clear All</button>
+                    </div>
+                </div>
+                <input type="text" id="ops-filter-section-search" placeholder="🔍 Filter section list..." style="margin-bottom:10px; padding:7px 10px; font-size:13px;" oninput="filterOpsMultiFilterChecklist()">
+                <div id="ops-filter-sections-checklist" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:8px; max-height:280px; overflow-y:auto; padding:12px; border:1px solid var(--border); border-radius:6px; background:#f8fafc;">
+                    <span style="color:var(--text-light); font-size:12px;">No sections loaded yet.</span>
+                </div>
+            </div>
+
+            <div style="display:flex; gap:10px; margin-top:20px;">
+                <button class="btn btn-clear" style="flex:1;" onclick="applyOpsOfficeFilter()">✅ Apply Filter</button>
+                <button class="btn" style="flex:1; background-color:var(--text-light);" onclick="closeOpsMultiFilterModal()">Cancel</button>
             </div>
         </div>
     </div>
@@ -2355,44 +2385,141 @@ ID NAME: ${rec.idName || "N/A"}`;
             };
         }
 
+        let selectedOpsOfficesFilter = new Set(); // empty = ALL offices shown
+
         function populateOpsOfficeFilter(officeMap) {
-            const filterEl = document.getElementById('ops-office-filter');
-            if (!filterEl) return;
-            const prevValue = filterEl.value || "ALL";
             const offices = Object.keys(officeMap || {}).sort();
+            // Prune any previously selected offices that no longer exist in newly uploaded data
+            if (selectedOpsOfficesFilter.size > 0) {
+                const validSet = new Set(offices);
+                selectedOpsOfficesFilter = new Set(
+                    Array.from(selectedOpsOfficesFilter).filter(sec => validSet.has(sec))
+                );
+            }
+            updateOpsFilterIndicatorUI();
+        }
 
-            filterEl.innerHTML = `<option value="ALL">All Offices / Sections (${offices.length})</option>`;
-            offices.forEach(office => {
-                const opt = document.createElement('option');
-                opt.value = office;
-                opt.textContent = office;
-                filterEl.appendChild(opt);
-            });
+        function updateOpsFilterIndicatorUI() {
+            const totalOffices = Object.keys(cachedOfficeCountsMap || {}).length;
+            const selectedList = Array.from(selectedOpsOfficesFilter).sort();
+            const badgeEl = document.getElementById('ops-filter-count-badge');
+            const statusTextEl = document.getElementById('ops-filter-status-text');
+            const resetBtnEl = document.getElementById('ops-reset-filter-btn');
+            const tagsContainerEl = document.getElementById('ops-active-filter-tags');
 
-            if (prevValue !== "ALL" && offices.includes(prevValue)) {
-                filterEl.value = prevValue;
+            if (selectedList.length === 0) {
+                if (badgeEl) badgeEl.textContent = totalOffices > 0 ? `All (${totalOffices})` : "All";
+                if (statusTextEl) statusTextEl.textContent = totalOffices > 0
+                    ? `Showing all ${totalOffices} offices / sections.`
+                    : "Showing all offices / sections.";
+                if (resetBtnEl) resetBtnEl.classList.add('hidden');
+                if (tagsContainerEl) {
+                    tagsContainerEl.classList.add('hidden');
+                    tagsContainerEl.innerHTML = "";
+                }
             } else {
-                filterEl.value = "ALL";
+                if (badgeEl) badgeEl.textContent = `${selectedList.length} of ${totalOffices}`;
+                if (statusTextEl) statusTextEl.textContent = `Filtered: showing ${selectedList.length} selected office(s) / section(s).`;
+                if (resetBtnEl) resetBtnEl.classList.remove('hidden');
+                if (tagsContainerEl) {
+                    tagsContainerEl.classList.remove('hidden');
+                    const tagsHtml = selectedList.map(sec =>
+                        `<span class="remark-tag" style="display:inline-flex; align-items:center; gap:5px; padding:4px 8px; font-size:12px;">
+                            ${escapeHtml(sec)}
+                            <button type="button" onclick="removeSingleOpsOfficeFilter('${escapeQuote(sec)}')" style="background:none; border:none; color:#0369a1; font-weight:bold; cursor:pointer; padding:0 2px; font-size:12px;" title="Remove ${escapeHtml(sec)}">✕</button>
+                        </span>`
+                    ).join("");
+                    tagsContainerEl.innerHTML = `<strong style="font-size:12px; color:#334155; margin-right:4px;">Active Filter:</strong>${tagsHtml}`;
+                }
             }
         }
 
-        function renderAllOfficeDrivenTables(selectedOffice = "ALL") {
-            renderOpsBreakdownTable('ops-summary-table-body', cachedOfficeCountsMap, selectedOffice);
-            renderSingleCategoryTable('ops-expat-only-table-body', cachedOfficeCountsMap, 'expat', selectedOffice);
-            renderSingleCategoryTable('ops-local-only-table-body', cachedOfficeCountsMap, 'local', selectedOffice);
-            renderSectionGroupsTable();
+        function getActiveOpsFilterArray() {
+            return Array.from(selectedOpsOfficesFilter).sort();
         }
 
+        function renderAllOfficeDrivenTables(selectedOffices = getActiveOpsFilterArray()) {
+            const filterList = Array.isArray(selectedOffices) ? selectedOffices : [];
+            renderOpsBreakdownTable('ops-summary-table-body', cachedOfficeCountsMap, filterList);
+            renderSingleCategoryTable('ops-expat-only-table-body', cachedOfficeCountsMap, 'expat', filterList);
+            renderSingleCategoryTable('ops-local-only-table-body', cachedOfficeCountsMap, 'local', filterList);
+            renderSectionGroupsTable();
+            updateOpsFilterIndicatorUI();
+        }
+
+        window.openOpsMultiFilterModal = function() {
+            const offices = Object.keys(cachedOfficeCountsMap || {}).sort();
+            if (offices.length === 0) {
+                alert("Please upload an Excel roster first so offices/sections are available to filter.");
+                return;
+            }
+
+            document.getElementById('ops-filter-section-search').value = "";
+            const checklistEl = document.getElementById('ops-filter-sections-checklist');
+            checklistEl.innerHTML = "";
+
+            offices.forEach(sec => {
+                const checked = selectedOpsOfficesFilter.has(sec) ? "checked" : "";
+                const label = document.createElement('label');
+                label.className = "ops-filter-sec-item";
+                label.setAttribute("data-sec", sec.toLowerCase());
+                label.style.cssText = "display:flex; align-items:center; gap:6px; margin:0; padding:6px 8px; background:#ffffff; border:1px solid var(--border); border-radius:4px; font-size:12px; cursor:pointer;";
+                label.innerHTML = `<input type="checkbox" class="ops-filter-sec-checkbox" value="${escapeHtml(sec)}" ${checked} style="width:auto; margin:0;" onchange="updateOpsFilterModalSelectedCount()"> <span>${escapeHtml(sec)}</span>`;
+                checklistEl.appendChild(label);
+            });
+
+            updateOpsFilterModalSelectedCount();
+            document.getElementById('ops-multi-filter-modal').classList.remove('hidden');
+        };
+
+        window.closeOpsMultiFilterModal = function() {
+            document.getElementById('ops-multi-filter-modal').classList.add('hidden');
+        };
+
+        window.updateOpsFilterModalSelectedCount = function() {
+            const checkedCount = document.querySelectorAll('.ops-filter-sec-checkbox:checked').length;
+            document.getElementById('ops-filter-modal-selected-count').textContent = checkedCount;
+        };
+
+        window.toggleAllOpsFilterSections = function(selectAll) {
+            document.querySelectorAll('.ops-filter-sec-item').forEach(item => {
+                if (item.style.display !== 'none') {
+                    const cb = item.querySelector('.ops-filter-sec-checkbox');
+                    if (cb) cb.checked = selectAll;
+                }
+            });
+            updateOpsFilterModalSelectedCount();
+        };
+
+        window.filterOpsMultiFilterChecklist = function() {
+            const q = document.getElementById('ops-filter-section-search').value.trim().toLowerCase();
+            document.querySelectorAll('.ops-filter-sec-item').forEach(item => {
+                const secName = item.getAttribute('data-sec') || "";
+                item.style.display = (!q || secName.includes(q)) ? 'flex' : 'none';
+            });
+        };
+
         window.applyOpsOfficeFilter = function() {
-            const filterEl = document.getElementById('ops-office-filter');
-            const selectedOffice = filterEl ? filterEl.value : "ALL";
-            renderAllOfficeDrivenTables(selectedOffice);
+            const checkedBoxes = Array.from(document.querySelectorAll('.ops-filter-sec-checkbox:checked')).map(cb => cb.value);
+            const totalOffices = Object.keys(cachedOfficeCountsMap || {}).length;
+            // If none selected or all selected, treat as showing all
+            if (checkedBoxes.length === 0 || checkedBoxes.length === totalOffices) {
+                selectedOpsOfficesFilter.clear();
+            } else {
+                selectedOpsOfficesFilter = new Set(checkedBoxes);
+            }
+            closeOpsMultiFilterModal();
+            renderAllOfficeDrivenTables();
+        };
+
+        window.removeSingleOpsOfficeFilter = function(sec) {
+            selectedOpsOfficesFilter.delete(sec);
+            renderAllOfficeDrivenTables();
         };
 
         window.resetOpsOfficeFilter = function() {
-            const filterEl = document.getElementById('ops-office-filter');
-            if (filterEl) filterEl.value = "ALL";
-            renderAllOfficeDrivenTables("ALL");
+            selectedOpsOfficesFilter.clear();
+            renderAllOfficeDrivenTables();
         };
 
         /* SECTION GROUP MODAL & CRUD LOGIC */
@@ -2735,14 +2862,20 @@ ID NAME: ${rec.idName || "N/A"}`;
             }
         }
 
-        function renderSingleCategoryTable(tbodyId, countsMap, categoryKey, filterValue = "ALL") {
+        function renderSingleCategoryTable(tbodyId, countsMap, categoryKey, filterValues = []) {
             const tbodyEl = document.getElementById(tbodyId);
             if (!tbodyEl) return;
             tbodyEl.innerHTML = "";
 
+            const selectedList = Array.isArray(filterValues)
+                ? filterValues
+                : (filterValues && filterValues !== "ALL" ? [filterValues] : []);
+            const hasActiveFilter = selectedList.length > 0;
+            const filterSet = new Set(selectedList);
+
             let keys = Object.keys(countsMap || {}).sort();
-            if (filterValue && filterValue !== "ALL") {
-                keys = keys.filter(k => k === filterValue);
+            if (hasActiveFilter) {
+                keys = keys.filter(k => filterSet.has(k));
             }
 
             if (keys.length === 0) {
@@ -2766,8 +2899,10 @@ ID NAME: ${rec.idName || "N/A"}`;
                 `;
             });
 
-            const totalLabel = (filterValue && filterValue !== "ALL")
-                ? `FILTERED TOTAL (${escapeHtml(filterValue)})`
+            const totalLabel = hasActiveFilter
+                ? (keys.length === 1
+                    ? `FILTERED TOTAL (${escapeHtml(keys[0])})`
+                    : `FILTERED TOTAL (${keys.length} Selected Sections)`)
                 : `TOTAL ${categoryKey.toUpperCase()} COUNTS`;
 
             tbodyEl.innerHTML += `
@@ -2877,8 +3012,8 @@ ID NAME: ${rec.idName || "N/A"}`;
                 updateOpsUploadMeta(metaData.fileName, metaData.uploader, metaData.timestamp);
                 document.getElementById('ops-upload-box-container').classList.add('hidden');
                 populateOpsOfficeFilter(officeCountsMap);
-                renderAllOfficeDrivenTables("ALL");
-                renderOpsBreakdownTable('ops-company-table-body', companyCountsMap, "ALL");
+                renderAllOfficeDrivenTables();
+                renderOpsBreakdownTable('ops-company-table-body', companyCountsMap, []);
             } catch (err) {
                 statusEl.textContent = "Error saving to cloud: " + err.message;
                 statusEl.className = "msg error";
@@ -2954,10 +3089,8 @@ ID NAME: ${rec.idName || "N/A"}`;
                 }
 
                 populateOpsOfficeFilter(officeCountsMap);
-                const filterEl = document.getElementById('ops-office-filter');
-                const selectedOffice = filterEl ? filterEl.value : "ALL";
-                renderAllOfficeDrivenTables(selectedOffice);
-                renderOpsBreakdownTable('ops-company-table-body', companyCountsMap, "ALL");
+                renderAllOfficeDrivenTables();
+                renderOpsBreakdownTable('ops-company-table-body', companyCountsMap, []);
             } catch (e) {
                 officeTbody.innerHTML = `<tr><td colspan="4" style="color:var(--error);">Error loading cloud counts: ${e.message}</td></tr>`;
                 companyTbody.innerHTML = `<tr><td colspan="4" style="color:var(--error);">Error loading company counts: ${e.message}</td></tr>`;
@@ -2976,13 +3109,19 @@ ID NAME: ${rec.idName || "N/A"}`;
             document.getElementById('ops-upload-meta-box').classList.remove('hidden');
         }
 
-        function renderOpsBreakdownTable(tbodyId, countsMap, filterValue = "ALL") {
+        function renderOpsBreakdownTable(tbodyId, countsMap, filterValues = []) {
             const tbodyEl = document.getElementById(tbodyId);
             tbodyEl.innerHTML = "";
 
+            const selectedList = Array.isArray(filterValues)
+                ? filterValues
+                : (filterValues && filterValues !== "ALL" ? [filterValues] : []);
+            const hasActiveFilter = selectedList.length > 0;
+            const filterSet = new Set(selectedList);
+
             let keys = Object.keys(countsMap || {}).sort();
-            if (filterValue && filterValue !== "ALL") {
-                keys = keys.filter(k => k === filterValue);
+            if (hasActiveFilter) {
+                keys = keys.filter(k => filterSet.has(k));
             }
 
             if (keys.length === 0) {
@@ -3011,8 +3150,10 @@ ID NAME: ${rec.idName || "N/A"}`;
             });
 
             const totalGrandAll = sumExpat + sumLocal;
-            const totalLabel = (filterValue && filterValue !== "ALL")
-                ? `FILTERED TOTAL (${escapeHtml(filterValue)})`
+            const totalLabel = hasActiveFilter
+                ? (keys.length === 1
+                    ? `FILTERED TOTAL (${escapeHtml(keys[0])})`
+                    : `FILTERED TOTAL (${keys.length} Selected Sections)`)
                 : "TOTAL COUNTS";
 
             tbodyEl.innerHTML += `
